@@ -1,2 +1,0 @@
-# Vatici
-Desenvolvimento da Vatici
