@@ -5,7 +5,7 @@ import Link from "next/link"
 import { ArrowLeft, TrendingUp, Clock, Share2, Bookmark } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatPercent, formatDateShort, getNoPrice } from "@/lib/mock-data"
-import { apiGet } from "@/lib/api"
+import { apiGet, apiPost } from "@/lib/api"
 import type { FrontendMarket } from "@/lib/api-types"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -19,6 +19,9 @@ function BinaryTradingPanel({ market }: { market: FrontendMarket }) {
   const [side, setSide] = useState<"YES" | "NO">("YES")
   const [amount, setAmount] = useState("")
   const [action, setAction] = useState<"buy" | "sell">("buy")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
 
   const yesPercent = Math.round(market.probability * 100)
   const noPercent = Math.round(getNoPrice(market) * 100)
@@ -26,6 +29,37 @@ function BinaryTradingPanel({ market }: { market: FrontendMarket }) {
   const numericAmount = parseFloat(amount) || 0
   const shares = numericAmount > 0 ? numericAmount / price : 0
   const potentialReturn = shares - numericAmount
+
+  // Handle bet submission
+  const handlePlaceBet = async () => {
+    try {
+      setIsSubmitting(true)
+      setSubmitError(null)
+      setSubmitSuccess(false)
+
+      // Convert BRL to cents (API expects cents)
+      const amountInCents = Math.round(numericAmount * 100)
+
+      const betResponse = await apiPost<{ id: string }>('/bets', {
+        marketId: market.id,
+        direction: side,
+        amount: amountInCents,
+      })
+
+      if (betResponse.id) {
+        setSubmitSuccess(true)
+        setAmount("") // Reset form
+        setTimeout(() => setSubmitSuccess(false), 3000)
+      }
+    } catch (err) {
+      console.error('Failed to place bet:', err)
+      setSubmitError(
+        err instanceof Error ? err.message : 'Failed to place bet. Please try again.'
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <>
@@ -100,15 +134,28 @@ function BinaryTradingPanel({ market }: { market: FrontendMarket }) {
         </div>
       </div>
 
+      {submitError && (
+        <div className="mb-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {submitError}
+        </div>
+      )}
+
+      {submitSuccess && (
+        <div className="mb-3 rounded-lg bg-success/10 p-3 text-sm text-success">
+          ✓ Aposta realizada com sucesso!
+        </div>
+      )}
+
       <Button
+        onClick={handlePlaceBet}
         className={`w-full font-semibold ${
           action === "buy"
             ? "bg-primary text-primary-foreground hover:bg-primary/90"
             : "bg-destructive text-primary-foreground hover:bg-destructive/90"
         }`}
-        disabled={numericAmount <= 0}
+        disabled={numericAmount <= 0 || isSubmitting}
       >
-        {t("detail.placeBet")}
+        {isSubmitting ? t("detail.placingBet") || "Fazendo aposta..." : t("detail.placeBet")}
       </Button>
     </>
   )
