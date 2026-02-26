@@ -1,0 +1,17 @@
+# Railway Configuration for Vatici Backend
+
+[build]
+# Build command (compile TypeScript to dist/)
+builder = "nixpacks"
+buildCommand = "npm run build"
+
+[deploy]
+# Start command (run compiled backend)
+startCommand = "npm start"
+
+# Health check endpoint for monitoring
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+
+# Environment settings
+restartPolicyMaxRetries = 5
