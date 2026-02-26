@@ -19,13 +19,13 @@ export interface DbUser {
  */
 export async function findUserByEmail(email: string): Promise<DbUser | null> {
   try {
-    const rows = await sql<DbUser[]>`
+    const rows = (await sql`
       SELECT id, name, email, password_hash
       FROM users
       WHERE LOWER(email) = LOWER(${email})
       AND deleted_at IS NULL
       LIMIT 1
-    `
+    `) as DbUser[]
     return rows[0] || null
   } catch (err) {
     console.error('findUserByEmail error:', err)
@@ -44,11 +44,11 @@ export async function createUser(data: {
 }): Promise<DbUser> {
   try {
     // Insert user
-    const userRows = await sql<DbUser[]>`
+    const userRows = (await sql`
       INSERT INTO users (name, email, password_hash)
       VALUES (${data.name}, LOWER(${data.email}), ${data.passwordHash})
       RETURNING id, name, email, password_hash
-    `
+    `) as DbUser[]
 
     const user = userRows[0]
     if (!user) throw new Error('Failed to create user')
@@ -72,13 +72,13 @@ export async function createUser(data: {
  */
 export async function findUserById(id: string): Promise<DbUser | null> {
   try {
-    const rows = await sql<DbUser[]>`
+    const rows = (await sql`
       SELECT id, name, email, password_hash
       FROM users
       WHERE id = ${id}
       AND deleted_at IS NULL
       LIMIT 1
-    `
+    `) as DbUser[]
     return rows[0] || null
   } catch (err) {
     console.error('findUserById error:', err)
@@ -91,12 +91,12 @@ export async function findUserById(id: string): Promise<DbUser | null> {
  */
 export async function getUserBalance(userId: string): Promise<number> {
   try {
-    const rows = await sql<{ balance: number }[]>`
+    const rows = (await sql`
       SELECT balance
       FROM user_balances
       WHERE user_id = ${userId}
       LIMIT 1
-    `
+    `) as { balance: number }[]
     return rows[0]?.balance ?? 0
   } catch (err) {
     console.error('getUserBalance error:', err)

@@ -11,6 +11,7 @@ import { serve } from '@hono/node-server'
 import { cors } from 'hono/cors'
 import { healthCheck } from './db/client'
 import marketsRoute from './routes/markets'
+import betsRoute from './routes/bets'
 
 const app = new Hono()
 
@@ -54,10 +55,10 @@ app.get('/', (c) => {
  * Routes
  */
 app.route('/markets', marketsRoute)
+app.route('/bets', betsRoute)
 
 /**
  * Routes to be added:
- * - /bets (POST)
  * - /me/balance (GET)
  * - /me/positions (GET)
  * - /me/activity (GET)
