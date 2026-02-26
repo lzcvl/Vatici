@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft, TrendingUp, Clock, Share2, Bookmark } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
-import type { MarketOption } from "@/lib/mock-data"
-import { markets, formatBRL, formatPercent, formatDateShort, getNoPrice } from "@/lib/mock-data"
+import { formatBRL, formatPercent, formatDateShort, getNoPrice } from "@/lib/mock-data"
+import { apiGet } from "@/lib/api"
+import type { FrontendMarket } from "@/lib/api-types"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OrigamiDiamond, OrigamiArrowUp, OrigamiArrowDown } from "./origami-icons"
@@ -13,7 +14,7 @@ import { MarketCard } from "./market-card"
 import { ProbabilityChart } from "./probability-chart"
 
 // ── Binary trading sidebar ──────────────────────────────────
-function BinaryTradingPanel({ market }: { market: (typeof markets)[number] }) {
+function BinaryTradingPanel({ market }: { market: FrontendMarket }) {
   const { t } = useI18n()
   const [side, setSide] = useState<"YES" | "NO">("YES")
   const [amount, setAmount] = useState("")
@@ -114,11 +115,11 @@ function BinaryTradingPanel({ market }: { market: (typeof markets)[number] }) {
 }
 
 // ── Multi-option trading sidebar ────────────────────────────
-function MultiTradingPanel({ market }: { market: (typeof markets)[number] }) {
+function MultiTradingPanel({ market }: { market: FrontendMarket }) {
   const { t, locale } = useI18n()
   const options = market.options ?? []
   const sorted = [...options].sort((a, b) => b.probability - a.probability)
-  const [selectedOption, setSelectedOption] = useState<MarketOption>(sorted[0])
+  const [selectedOption, setSelectedOption] = useState(sorted[0])
   const [amount, setAmount] = useState("")
   const [action, setAction] = useState<"buy" | "sell">("buy")
 
@@ -272,9 +273,56 @@ function AmountInput({
 // ── Main Page ───────────────────────────────────────────────
 export function MarketDetail({ marketId }: { marketId: string }) {
   const { t, locale } = useI18n()
-  const market = markets.find((m) => m.id === marketId)
+  const [market, setMarket] = useState<FrontendMarket | null>(null)
+  const [relatedMarkets, setRelatedMarkets] = useState<FrontendMarket[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!market) return null
+  // Fetch market and related markets on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Fetch the specific market
+        const marketData = await apiGet<FrontendMarket>(`/markets/${marketId}`)
+        setMarket(marketData)
+
+        // Fetch all markets to find related ones (same category)
+        const allMarkets = await apiGet<FrontendMarket[]>('/markets?status=open&limit=100')
+        const related = allMarkets
+          .filter((m) => m.id !== marketId && m.category === marketData.category)
+          .slice(0, 3)
+        setRelatedMarkets(related)
+      } catch (err) {
+        console.error('Failed to fetch market:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load market')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [marketId])
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center">
+        <p className="text-muted-foreground">Carregando mercado...</p>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error || !market) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center">
+        <p className="text-destructive">Erro ao carregar mercado: {error || 'Mercado não encontrado'}</p>
+      </div>
+    )
+  }
 
   const isMulti = market.type === "multi"
   const yesPercent = Math.round(market.probability * 100)
@@ -282,10 +330,6 @@ export function MarketDetail({ marketId }: { marketId: string }) {
   const sortedOptions = isMulti
     ? [...(market.options ?? [])].sort((a, b) => b.probability - a.probability)
     : []
-
-  const relatedMarkets = markets
-    .filter((m) => m.id !== marketId && m.category === market.category)
-    .slice(0, 3)
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
