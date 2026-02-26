@@ -12,6 +12,7 @@ import { cors } from 'hono/cors'
 import { healthCheck } from './db/client'
 import marketsRoute from './routes/markets'
 import betsRoute from './routes/bets'
+import meRoute from './routes/me'
 
 const app = new Hono()
 
@@ -56,13 +57,7 @@ app.get('/', (c) => {
  */
 app.route('/markets', marketsRoute)
 app.route('/bets', betsRoute)
-
-/**
- * Routes to be added:
- * - /me/balance (GET)
- * - /me/positions (GET)
- * - /me/activity (GET)
- */
+app.route('/me', meRoute)
 
 /**
  * 404 handler

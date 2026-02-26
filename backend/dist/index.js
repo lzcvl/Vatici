@@ -16,6 +16,7 @@ const cors_1 = require("hono/cors");
 const client_1 = require("./db/client");
 const markets_1 = __importDefault(require("./routes/markets"));
 const bets_1 = __importDefault(require("./routes/bets"));
+const me_1 = __importDefault(require("./routes/me"));
 const app = new hono_1.Hono();
 /**
  * CORS middleware
@@ -52,12 +53,7 @@ app.get('/', (c) => {
  */
 app.route('/markets', markets_1.default);
 app.route('/bets', bets_1.default);
-/**
- * Routes to be added:
- * - /me/balance (GET)
- * - /me/positions (GET)
- * - /me/activity (GET)
- */
+app.route('/me', me_1.default);
 /**
  * 404 handler
  */
