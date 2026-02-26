@@ -3,7 +3,7 @@
 import { hashSync } from "bcryptjs"
 import { signIn, signOut } from "./auth"
 import { loginSchema, signupSchema, forgotPasswordSchema } from "./zod-schemas"
-import { findUserByEmail, createUser } from "./mock-users"
+import { findUserByEmail, createUser } from "./db/users"
 
 export type AuthResult = {
   success: boolean
@@ -46,13 +46,13 @@ export async function signupAction(formData: FormData): Promise<AuthResult> {
     return { success: false, error: parsed.error.errors[0].message }
   }
 
-  const existing = findUserByEmail(parsed.data.email)
+  const existing = await findUserByEmail(parsed.data.email)
   if (existing) {
     return { success: false, error: "auth.errors.emailExists" }
   }
 
   const passwordHash = hashSync(parsed.data.password, 10)
-  createUser({
+  await createUser({
     name: parsed.data.name,
     email: parsed.data.email,
     passwordHash,
