@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Providers } from '@/components/vatici/providers'
 import { AppShell } from '@/components/vatici/app-shell'
 import './globals.css'
@@ -50,6 +51,7 @@ export default function RootLayout({
           </AppShell>
         </Providers>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
