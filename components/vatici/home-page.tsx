@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n"
-import { markets, formatBRL, formatPercent, getNoPrice, getTopOptions } from "@/lib/mock-data"
+import { formatBRL, formatPercent, getNoPrice, getTopOptions } from "@/lib/mock-data"
+import { apiGet } from "@/lib/api"
+import type { FrontendMarket } from "@/lib/api-types"
 import { CategoryBar } from "./category-bar"
 import { MarketCard } from "./market-card"
 import { ArrowRight, TrendingUp } from "lucide-react"
@@ -14,6 +16,28 @@ export function HomePage() {
   const { t, locale } = useI18n()
   const router = useRouter()
   const [category, setCategory] = useState("all")
+  const [markets, setMarkets] = useState<FrontendMarket[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch markets on mount
+  useEffect(() => {
+    const fetchMarkets = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await apiGet<FrontendMarket[]>('/markets?status=open&limit=100')
+        setMarkets(data || [])
+      } catch (err) {
+        console.error('Failed to fetch markets:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load markets')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchMarkets()
+  }, [])
 
   const filteredMarkets = useMemo(() => {
     if (category === "all") return markets
@@ -30,6 +54,24 @@ export function HomePage() {
     () => [...markets].sort((a, b) => b.volume - a.volume).slice(0, 6),
     []
   )
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center">
+        <p className="text-muted-foreground">Carregando mercados...</p>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center">
+        <p className="text-destructive">Erro ao carregar mercados: {error}</p>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -49,15 +91,22 @@ export function HomePage() {
           </Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {trendingMarkets.map((market) => (
-            <MarketCard key={market.id} market={market} />
-          ))}
+          {trendingMarkets.length > 0 ? (
+            trendingMarkets.map((market) => (
+              <MarketCard key={market.id} market={market} />
+            ))
+          ) : (
+            <p className="col-span-full text-center text-muted-foreground py-8">
+              {t("home.noTrendingMarkets") || "Nenhum mercado em alta no momento"}
+            </p>
+          )}
         </div>
       </section>
 
       {/* Top Volume - compact horizontal list */}
       <section className="mx-auto max-w-7xl px-4 py-6">
         <h2 className="mb-4 text-lg font-bold text-foreground">{t("home.topVolume")}</h2>
+        {topVolumeMarkets.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {topVolumeMarkets.map((market) => {
             const isMulti = market.type === "multi"
@@ -163,6 +212,7 @@ export function HomePage() {
             )
           })}
         </div>
+        )}
       </section>
 
       {/* All Markets with Category Filter */}
