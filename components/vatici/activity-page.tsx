@@ -1,19 +1,67 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useI18n } from "@/lib/i18n"
-import { userBets, markets, formatBRL, formatDate, formatTime } from "@/lib/mock-data"
+import { formatBRL, formatDate, formatTime } from "@/lib/mock-data"
+import { apiGet } from "@/lib/api"
 import { OrigamiCrane, OrigamiArrowUp, OrigamiArrowDown } from "./origami-icons"
+
+interface Activity {
+  id: string
+  type: 'bet'
+  marketId: string
+  direction?: 'YES' | 'NO'
+  amount: number
+  shares?: number
+  createdAt: string
+  market?: {
+    id: string
+    question: { pt: string; en: string; es: string }
+    type: string
+  }
+}
 
 export function ActivityPage() {
   const { t, locale } = useI18n()
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Deriva a atividade a partir das bets (tipo "buy" por padrao, pois nao existe sell no mock)
-  const activities = userBets
-    .map((bet) => {
-      const market = markets.find((m) => m.id === bet.marketId)
-      return { ...bet, market }
-    })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  useEffect(() => {
+    const fetchActivity = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await apiGet<Activity[]>('/me/activity')
+        setActivities(data || [])
+      } catch (err) {
+        console.error('Failed to fetch activity:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load activity')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchActivity()
+  }, [])
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center">
+        <p className="text-muted-foreground">Carregando atividade...</p>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center">
+        <p className="text-destructive">Erro ao carregar atividade: {error}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -39,7 +87,7 @@ export function ActivityPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="truncate text-sm font-semibold text-foreground">
-                  {activity.market?.question[locale] ?? activity.marketId}
+                  {activity.market?.question[locale as 'pt' | 'en' | 'es'] ?? activity.marketId}
                 </h3>
                 <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="font-bold uppercase text-success">

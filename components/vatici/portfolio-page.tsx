@@ -1,17 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { useI18n } from "@/lib/i18n"
-import {
-  currentUser,
-  userBets,
-  markets,
-  formatBRL,
-  formatPercent,
-  getNoPrice,
-  type Bet,
-} from "@/lib/mock-data"
+import { formatBRL, formatPercent, getNoPrice } from "@/lib/mock-data"
+import { apiGet } from "@/lib/api"
+import type { FrontendMarket } from "@/lib/api-types"
 import { Button } from "@/components/ui/button"
 import {
   ArrowUpRight,
@@ -53,14 +47,67 @@ function enrichBet(bet: Bet) {
   return { ...bet, market, currentPrice, currentValue, invested, profit, profitPercent }
 }
 
+interface UserPosition {
+  marketId: string
+  direction: 'YES' | 'NO'
+  shares: number
+  investedAmount: number
+  market: FrontendMarket
+}
+
 export function PortfolioPage() {
   const { t, locale } = useI18n()
   const [tab, setTab] = useState<TabKey>("positions")
   const [sortKey, setSortKey] = useState<SortKey>("value")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [expandedBet, setExpandedBet] = useState<string | null>(null)
+  const [positions, setPositions] = useState<UserPosition[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const enrichedBets = useMemo(() => userBets.map(enrichBet), [])
+  // Fetch positions on mount
+  useEffect(() => {
+    const fetchPositions = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await apiGet<UserPosition[]>('/me/positions')
+        setPositions(data || [])
+      } catch (err) {
+        console.error('Failed to fetch positions:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load positions')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPositions()
+  }, [])
+
+  // Transform positions to enriched bets format
+  const enrichedBets = useMemo(() => {
+    return positions.map((pos) => {
+      const currentPrice = pos.direction === 'YES' ? pos.market.probability : getNoPrice(pos.market)
+      const currentValue = pos.shares * currentPrice
+      const invested = pos.investedAmount
+      const profit = currentValue - invested
+      const profitPercent = invested > 0 ? (profit / invested) * 100 : 0
+      return {
+        id: `${pos.marketId}-${pos.direction}`,
+        marketId: pos.marketId,
+        direction: pos.direction as 'YES' | 'NO',
+        amount: invested,
+        shares: pos.shares,
+        avgPrice: currentPrice,
+        market: pos.market,
+        currentPrice,
+        currentValue,
+        invested,
+        profit,
+        profitPercent,
+      }
+    })
+  }, [positions])
 
   const sorted = useMemo(() => {
     const copy = [...enrichedBets]
@@ -103,6 +150,24 @@ export function PortfolioPage() {
     { key: "closed", label: t("portfolio.closedPositions") },
   ]
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-16 text-center">
+        <p className="text-muted-foreground">Carregando portfólio...</p>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-16 text-center">
+        <p className="text-destructive">Erro ao carregar portfólio: {error}</p>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       {/* ── Top: Portfolio value chart + summary ── */}
@@ -115,7 +180,7 @@ export function PortfolioPage() {
           </div>
           <div className="mb-1 flex items-baseline gap-3">
             <span className="text-3xl font-bold tracking-tight text-foreground">
-              {formatBRL(totalValue + currentUser.balance)}
+              {formatBRL(totalValue)}
             </span>
             <span className={`flex items-center gap-0.5 text-sm font-semibold ${isUp ? "text-success" : "text-destructive"}`}>
               {isUp ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
