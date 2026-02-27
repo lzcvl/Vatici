@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { Search, Menu, X, LogOut, User, Settings } from "lucide-react"
+import { Search, Menu, X, LogOut, User, Settings, Plus } from "lucide-react"
 import { useState } from "react"
 import { useI18n } from "@/lib/i18n"
 import { currentUser, formatBRL } from "@/lib/mock-data"
@@ -87,6 +87,16 @@ export function Header() {
             >
               <Search className="h-5 w-5" />
             </button>
+          )}
+
+            {/* Criar Mercado (desktop, logged in) */}
+          {session?.user && (
+            <Link href="/criar" className="hidden md:block">
+              <Button size="sm" className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
+                <Plus className="h-4 w-4" />
+                Criar
+              </Button>
+            </Link>
           )}
 
           {/* Auth Buttons / User Menu */}
@@ -191,6 +201,14 @@ export function Header() {
             )}
             {session?.user && (
               <div className="mt-2 flex flex-col gap-2">
+                <Link
+                  href="/criar"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-lg bg-primary/10 px-4 py-3 text-sm font-medium text-primary"
+                >
+                  <Plus className="h-4 w-4" />
+                  Criar Mercado
+                </Link>
                 <div className="flex items-center justify-between rounded-lg bg-success/10 px-4 py-3">
                   <span className="text-sm text-muted-foreground">{t("portfolio.balance")}</span>
                   <span className="font-mono text-sm font-semibold text-success">{formatBRL(currentUser.balance)}</span>

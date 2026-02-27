@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Plus,
 } from "lucide-react"
 import { OrigamiCrane, OrigamiDiamond } from "./origami-icons"
 import {
@@ -245,6 +246,12 @@ export function PortfolioPage() {
                 {t("portfolio.withdraw")}
               </Button>
             </div>
+            <Link href="/criar" className="mt-2 block">
+              <Button size="sm" variant="outline" className="w-full gap-1.5 border-primary/40 text-primary text-xs hover:bg-primary/10">
+                <Plus className="h-3.5 w-3.5" />
+                Criar Mercado
+              </Button>
+            </Link>
           </div>
 
           {/* PnL */}
