@@ -48,10 +48,13 @@ export function AccountPage() {
   // Preferences
   const [emailNotifications, setEmailNotifications] = useState(true)
 
-  if (!session?.user) {
-    router.push("/login")
-    return null
-  }
+  useEffect(() => {
+    if (session !== undefined && !session?.user) {
+      router.push("/login")
+    }
+  }, [session, router])
+
+  if (!session?.user) return null
 
   function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()

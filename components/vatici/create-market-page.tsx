@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Plus, Trash2, ChevronDown } from "lucide-react"
@@ -33,11 +33,14 @@ export function CreateMarketPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Redirect if not logged in
-  if (!session?.user) {
-    router.push("/login")
-    return null
-  }
+  // Redirect if not logged in (useEffect avoids calling router.push during SSR)
+  useEffect(() => {
+    if (session !== undefined && !session?.user) {
+      router.push("/login")
+    }
+  }, [session, router])
+
+  if (!session?.user) return null
 
   function addAnswer() {
     if (answers.length < 6) setAnswers([...answers, ""])
