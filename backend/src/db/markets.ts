@@ -105,13 +105,15 @@ export async function createMarket(data: {
     const poolYes = data.initialPoolYes ?? 100000
     const poolNo = data.initialPoolNo ?? 100000
 
+    const creatorId = data.creatorId === 'todo-auth' ? null : data.creatorId
+
     const rows = (await sql`
       INSERT INTO markets (
         creator_id, question, description, category,
         market_type, pool_yes, pool_no, closes_at
       )
       VALUES (
-        ${data.creatorId}, ${data.question}, ${data.description},
+        ${creatorId}, ${data.question}, ${data.description},
         ${data.category}, ${data.marketType}, ${poolYes}, ${poolNo},
         ${data.closesAt}
       )
