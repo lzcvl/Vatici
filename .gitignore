@@ -10,6 +10,9 @@ node_modules/
 .DS_Store
 .vercel
 
+# Backend compiled output (Railway compiles from source)
+backend/dist/
+
 # Reference materials (not part of the project)
 BASEADOR/
 *.zip
