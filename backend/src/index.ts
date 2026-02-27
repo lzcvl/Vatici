@@ -18,15 +18,15 @@ const app = new Hono()
 
 /**
  * CORS middleware
- * Allow requests from frontend (Vercel URL)
+ * Allow requests from any origin (MVP mode)
+ * TODO: Restrict to FRONTEND_URL in production
  */
 app.use(
   '*',
   cors({
-    origin: process.env.FRONTEND_URL || '*',
+    origin: '*',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
   })
 )
 
