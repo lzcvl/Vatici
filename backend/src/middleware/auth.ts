@@ -10,11 +10,11 @@ import { jwtVerify } from 'jose'
 import { HTTPException } from 'hono/http-exception'
 import type { Context } from 'hono'
 
-if (!process.env.AUTH_SECRET) {
-  throw new Error('AUTH_SECRET environment variable is not set')
+const getSecret = () => {
+  const secret = process.env.AUTH_SECRET
+  if (!secret) throw new Error('AUTH_SECRET environment variable is not set')
+  return new TextEncoder().encode(secret)
 }
-
-const getSecret = () => new TextEncoder().encode(process.env.AUTH_SECRET)
 
 /**
  * Verify the Bearer token and return the userId (payload.sub).

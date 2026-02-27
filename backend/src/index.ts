@@ -94,6 +94,11 @@ app.onError((err, c) => {
  */
 const port = Number(process.env.PORT || 3001)
 
+// Warn loudly if AUTH_SECRET is missing — protected routes will reject all requests
+if (!process.env.AUTH_SECRET) {
+  console.error('⚠️  WARNING: AUTH_SECRET is not set. All authenticated endpoints will return 401.')
+}
+
 serve(
   {
     fetch: app.fetch,
@@ -102,6 +107,7 @@ serve(
   (info) => {
     console.log(`🚀 Server running on http://localhost:${info.port}`)
     console.log(`📊 Database: ${process.env.DATABASE_URL_UNPOOLED ? 'unpooled' : 'pooled'}`)
+    console.log(`🔐 Auth: ${process.env.AUTH_SECRET ? 'configured' : 'MISSING AUTH_SECRET'}`)
   }
 )
 
