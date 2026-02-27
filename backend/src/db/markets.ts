@@ -13,10 +13,12 @@ export async function listMarkets(filters?: {
   category?: string
   status?: string
   limit?: number
+  search?: string
 }): Promise<Array<{ market: DbMarket; answers: DbAnswer[] }>> {
   try {
     const status = filters?.status ?? 'open'
     const limit = filters?.limit ?? 50
+    const searchPattern = filters?.search ? `%${filters.search}%` : null
 
     const markets = (await sql`
       SELECT
@@ -26,6 +28,7 @@ export async function listMarkets(filters?: {
       FROM markets
       WHERE status = ${status}
       ${filters?.category ? sql`AND category = ${filters.category}` : sql``}
+      ${searchPattern ? sql`AND (question ILIKE ${searchPattern} OR description ILIKE ${searchPattern})` : sql``}
       ORDER BY is_trending DESC, total_volume DESC
       LIMIT ${limit}
     `) as DbMarket[]
@@ -164,6 +167,30 @@ export async function getMarketForBetting(
   } catch (err) {
     console.error('getMarketForBetting error:', err)
     throw err
+  }
+}
+
+/**
+ * Lazily update is_trending for open markets based on bet volume in the last 24h.
+ * Top 5 markets by recent volume → trending = true, all others → false.
+ */
+export async function updateTrending(): Promise<void> {
+  try {
+    await sql`
+      WITH recent_volume AS (
+        SELECT market_id, SUM(amount) AS vol
+        FROM bets
+        WHERE created_at > NOW() - INTERVAL '24 hours'
+        GROUP BY market_id
+        ORDER BY vol DESC
+        LIMIT 5
+      )
+      UPDATE markets
+      SET is_trending = (id IN (SELECT market_id FROM recent_volume))
+      WHERE status = 'open'
+    `
+  } catch (err) {
+    console.error('updateTrending error:', err)
   }
 }
 

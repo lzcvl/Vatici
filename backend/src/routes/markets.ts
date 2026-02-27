@@ -4,7 +4,7 @@
  */
 
 import { Hono } from 'hono'
-import { listMarkets, getMarketById, createMarket } from '../db/markets'
+import { listMarkets, getMarketById, createMarket, updateTrending } from '../db/markets'
 import { mapMarket, type ErrorResponse } from '../mappers'
 import { verifyAuth } from '../middleware/auth'
 import { resolveWithAi } from '../lib/ai-resolver'
@@ -19,12 +19,16 @@ const app = new Hono()
  */
 app.get('/', async (c) => {
   try {
-    const { category, status = 'open', limit = '50' } = c.req.query()
+    const { category, status = 'open', limit = '50', q } = c.req.query()
+
+    // Fire-and-forget: lazily refresh trending flags
+    updateTrending().catch(() => {})
 
     const markets = await listMarkets({
       category: category || undefined,
       status,
       limit: Math.min(parseInt(limit), 100), // max 100
+      search: q || undefined,
     })
 
     const result = markets.map(({ market, answers }) => mapMarket(market, answers))

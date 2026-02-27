@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatPercent, getNoPrice, getTopOptions } from "@/lib/mock-data"
 import { apiGet } from "@/lib/api"
@@ -15,18 +15,22 @@ import { OrigamiDiamond } from "./origami-icons"
 export function HomePage() {
   const { t, locale } = useI18n()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const searchQuery = searchParams.get('q') || ''
   const [category, setCategory] = useState("all")
   const [markets, setMarkets] = useState<FrontendMarket[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch markets on mount
+  // Fetch markets (re-fetch when search query changes)
   useEffect(() => {
     const fetchMarkets = async () => {
       try {
         setLoading(true)
         setError(null)
-        const data = await apiGet<FrontendMarket[]>('/markets?status=open&limit=100')
+        const params = new URLSearchParams({ status: 'open', limit: '100' })
+        if (searchQuery) params.set('q', searchQuery)
+        const data = await apiGet<FrontendMarket[]>(`/markets?${params}`)
         setMarkets(data || [])
       } catch (err) {
         console.error('Failed to fetch markets:', err)
@@ -37,7 +41,7 @@ export function HomePage() {
     }
 
     fetchMarkets()
-  }, [])
+  }, [searchQuery])
 
   const filteredMarkets = useMemo(() => {
     if (category === "all") return markets
@@ -69,6 +73,29 @@ export function HomePage() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 text-center">
         <p className="text-destructive">Erro ao carregar mercados: {error}</p>
+      </div>
+    )
+  }
+
+  // Search results view
+  if (searchQuery) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <h2 className="mb-1 text-lg font-bold text-foreground">
+          Resultados para <span className="text-primary">&ldquo;{searchQuery}&rdquo;</span>
+        </h2>
+        <p className="mb-6 text-sm text-muted-foreground">{markets.length} mercado(s) encontrado(s)</p>
+        {markets.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {markets.map((market) => (
+              <MarketCard key={market.id} market={market} />
+            ))}
+          </div>
+        ) : (
+          <div className="py-16 text-center text-muted-foreground">
+            Nenhum mercado encontrado para esta busca.
+          </div>
+        )}
       </div>
     )
   }

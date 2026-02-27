@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { Search, Menu, X, LogOut, User, Settings, Plus } from "lucide-react"
 import { useState, useEffect } from "react"
@@ -20,6 +20,7 @@ import {
 export function Header() {
   const { t } = useI18n()
   const pathname = usePathname()
+  const router = useRouter()
   const { data: session } = useSession()
   const [searchOpen, setSearchOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -74,7 +75,15 @@ export function Header() {
         {/* Search + Actions */}
         <div className="flex items-center gap-2">
           {searchOpen ? (
-            <div className="flex items-center gap-2">
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const q = searchQuery.trim()
+                router.push(q ? `/?q=${encodeURIComponent(q)}` : "/")
+                setSearchOpen(false)
+              }}
+            >
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
@@ -86,10 +95,16 @@ export function Header() {
                   autoFocus
                 />
               </div>
-              <button onClick={() => setSearchOpen(false)}>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchOpen(false)
+                  setSearchQuery("")
+                }}
+              >
                 <X className="h-4 w-4 text-muted-foreground" />
               </button>
-            </div>
+            </form>
           ) : (
             <button
               onClick={() => setSearchOpen(true)}

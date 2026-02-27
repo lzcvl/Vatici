@@ -873,7 +873,19 @@ export function MarketDetail({ marketId }: { marketId: string }) {
 
           {/* Actions */}
           <div className="mb-6 flex items-center gap-3">
-            <Button variant="outline" size="sm" className="gap-1.5 border-border text-muted-foreground">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-border text-muted-foreground"
+              onClick={() => {
+                const url = window.location.href
+                if (navigator.share) {
+                  navigator.share({ title: document.title, url })
+                } else {
+                  navigator.clipboard.writeText(url)
+                }
+              }}
+            >
               <Share2 className="h-4 w-4" />
               Share
             </Button>
