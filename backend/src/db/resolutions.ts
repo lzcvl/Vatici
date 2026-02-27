@@ -321,6 +321,61 @@ export async function finalizeResolution(marketId: string): Promise<void> {
 }
 
 /**
+ * Admin override: manually resolve a disputed or ai_uncertain market.
+ * Upserts the resolution result then calls finalizeResolution to distribute payouts.
+ */
+export async function adminResolveMarket(marketId: string, result: string): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Ensure market exists and is not already resolved
+    const marketRows = await client.query<{ status: string }>(
+      "SELECT status FROM markets WHERE id = $1 FOR UPDATE",
+      [marketId]
+    )
+    const market = marketRows.rows[0]
+    if (!market) throw new Error('Market not found')
+    if (market.status === 'resolved') throw new Error('Market already resolved')
+
+    // Upsert resolution record with admin-provided result
+    const existing = await client.query(
+      'SELECT id FROM market_resolutions WHERE market_id = $1',
+      [marketId]
+    )
+    if (existing.rows.length > 0) {
+      await client.query(
+        "UPDATE market_resolutions SET result = $1 WHERE market_id = $2",
+        [result, marketId]
+      )
+    } else {
+      await client.query(
+        `INSERT INTO market_resolutions (market_id, result, confirm_count, dispute_count)
+         VALUES ($1, $2, 0, 0)`,
+        [marketId, result]
+      )
+    }
+
+    // Set status so finalizeResolution can proceed (it blocks only on 'resolved')
+    await client.query(
+      "UPDATE markets SET status = 'pending_resolution' WHERE id = $1 AND status != 'resolved'",
+      [marketId]
+    )
+
+    await client.query('COMMIT')
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('adminResolveMarket setup error:', err)
+    throw err
+  } finally {
+    client.release()
+  }
+
+  // Distribute payouts using existing logic
+  await finalizeResolution(marketId)
+}
+
+/**
  * Fetch resolution details for a market (public)
  */
 export async function getMarketResolution(marketId: string): Promise<ResolutionRow | null> {

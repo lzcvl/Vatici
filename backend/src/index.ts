@@ -13,6 +13,7 @@ import marketsRoute from './routes/markets'
 import betsRoute from './routes/bets'
 import meRoute from './routes/me'
 import resolutionsRoute from './routes/resolutions'
+import adminRoute from './routes/admin'
 
 const app = new Hono()
 
@@ -69,6 +70,7 @@ app.route('/markets', marketsRoute)
 app.route('/bets', betsRoute)
 app.route('/me', meRoute)
 app.route('/resolutions', resolutionsRoute)
+app.route('/admin', adminRoute)
 
 /**
  * 404 handler

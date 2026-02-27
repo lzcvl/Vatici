@@ -100,3 +100,17 @@ export async function apiPut<T>(path: string, body: unknown, token?: string): Pr
 export async function apiDelete<T>(path: string, token?: string): Promise<T> {
   return makeRequest<T>('DELETE', path, undefined, token)
 }
+
+/**
+ * GET request with admin secret — for admin-only routes
+ */
+export async function apiGetAdmin<T>(path: string, adminSecret: string): Promise<T> {
+  return makeRequest<T>('GET', path, undefined, adminSecret)
+}
+
+/**
+ * POST request with admin secret — for admin-only routes
+ */
+export async function apiPostAdmin<T>(path: string, body: unknown, adminSecret: string): Promise<T> {
+  return makeRequest<T>('POST', path, body, adminSecret)
+}
