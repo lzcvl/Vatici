@@ -9,6 +9,7 @@ import { signupAction } from "@/lib/auth-actions"
 import { Button } from "@/components/ui/button"
 import { OrigamiStar } from "@/components/vatici/origami-icons"
 import { Eye, EyeOff, Mail, Lock, User, AlertCircle } from "lucide-react"
+import { Turnstile } from "@marsidev/react-turnstile"
 
 export default function CadastroPage() {
   const { t } = useI18n()
@@ -150,6 +151,15 @@ export default function CadastroPage() {
                 />
               </div>
             </div>
+
+            {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+              <div className="flex justify-center">
+                <Turnstile
+                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                  options={{ theme: "dark", size: "normal" }}
+                />
+              </div>
+            )}
 
             <Button
               type="submit"

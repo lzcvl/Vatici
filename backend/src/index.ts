@@ -7,6 +7,7 @@
 
 import 'dotenv/config'
 import { Hono } from 'hono'
+import type { Context, Next } from 'hono'
 import { serve } from '@hono/node-server'
 import { healthCheck } from './db/client'
 import marketsRoute from './routes/markets'
@@ -17,6 +18,39 @@ import adminRoute from './routes/admin'
 import commentsRoute from './routes/comments'
 
 const app = new Hono()
+
+/**
+ * In-memory rate limiter
+ * Single Railway instance — Map is sufficient for MVP
+ */
+const rlStore = new Map<string, { count: number; resetAt: number }>()
+
+function makeRateLimiter(maxRequests: number, windowMs: number) {
+  return async (c: Context, next: Next) => {
+    const ip =
+      c.req.header('x-forwarded-for')?.split(',')[0].trim() ||
+      c.req.header('x-real-ip') ||
+      'unknown'
+    const key = `${ip}:${c.req.path}:${c.req.method}`
+    const now = Date.now()
+    const entry = rlStore.get(key)
+
+    if (!entry || entry.resetAt < now) {
+      rlStore.set(key, { count: 1, resetAt: now + windowMs })
+    } else if (entry.count >= maxRequests) {
+      return c.json({ error: 'Too many requests. Please try again later.' }, 429)
+    } else {
+      entry.count++
+    }
+
+    await next()
+  }
+}
+
+// Route-specific limiters
+const strictLimiter = makeRateLimiter(20,  15 * 60 * 1000) // 20 req / 15 min  (bets, sell)
+const normalLimiter = makeRateLimiter(60,  60 * 1000)       // 60 req / min     (comments, resolutions)
+const publicLimiter = makeRateLimiter(300, 60 * 1000)       // 300 req / min    (markets GET)
 
 /**
  * CORS middleware - allow Vercel frontend origins
@@ -63,6 +97,16 @@ app.get('/', (c) => {
     status: 'running',
   })
 })
+
+/**
+ * Rate limiting per route group
+ */
+app.use('/bets/*',         strictLimiter)
+app.use('/markets',        publicLimiter)
+app.use('/markets/*',      publicLimiter)
+app.use('/comments/*',     normalLimiter)
+app.use('/resolutions/*',  normalLimiter)
+app.use('/me/*',           normalLimiter)
 
 /**
  * Routes

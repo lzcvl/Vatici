@@ -1,16 +1,42 @@
 "use server"
 
+import { headers } from "next/headers"
 import { hashSync } from "bcryptjs"
 import { signIn, signOut } from "./auth"
 import { loginSchema, signupSchema, forgotPasswordSchema } from "./zod-schemas"
 import { findUserByEmail, createUser } from "./db/users"
+import { verifyTurnstile } from "./turnstile"
+import { checkRateLimit } from "./rate-limit"
 
 export type AuthResult = {
   success: boolean
   error?: string
 }
 
+async function getClientIp(): Promise<string> {
+  const hdrs = await headers()
+  return (
+    hdrs.get("x-forwarded-for")?.split(",")[0].trim() ||
+    hdrs.get("x-real-ip") ||
+    "127.0.0.1"
+  )
+}
+
 export async function loginAction(formData: FormData): Promise<AuthResult> {
+  const ip = await getClientIp()
+
+  // Rate limit: 10 login attempts per IP per 15 minutes
+  if (!checkRateLimit(`login:${ip}`, 10, 15 * 60 * 1000)) {
+    return { success: false, error: "auth.errors.tooManyAttempts" }
+  }
+
+  // Turnstile verification
+  const cfToken = formData.get("cf-turnstile-response") as string | null
+  const turnstileOk = await verifyTurnstile(cfToken)
+  if (!turnstileOk) {
+    return { success: false, error: "auth.errors.captchaFailed" }
+  }
+
   const raw = {
     email: formData.get("email") as string,
     password: formData.get("password") as string,
@@ -34,6 +60,20 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
 }
 
 export async function signupAction(formData: FormData): Promise<AuthResult> {
+  const ip = await getClientIp()
+
+  // Rate limit: 5 signups per IP per hour
+  if (!checkRateLimit(`signup:${ip}`, 5, 60 * 60 * 1000)) {
+    return { success: false, error: "auth.errors.tooManyAttempts" }
+  }
+
+  // Turnstile verification
+  const cfToken = formData.get("cf-turnstile-response") as string | null
+  const turnstileOk = await verifyTurnstile(cfToken)
+  if (!turnstileOk) {
+    return { success: false, error: "auth.errors.captchaFailed" }
+  }
+
   const raw = {
     name: formData.get("name") as string,
     email: formData.get("email") as string,

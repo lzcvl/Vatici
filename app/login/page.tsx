@@ -9,6 +9,7 @@ import { loginAction } from "@/lib/auth-actions"
 import { Button } from "@/components/ui/button"
 import { OrigamiCrane } from "@/components/vatici/origami-icons"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
+import { Turnstile } from "@marsidev/react-turnstile"
 
 export default function LoginPage() {
   const { t } = useI18n()
@@ -121,6 +122,15 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+
+            {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+              <div className="flex justify-center">
+                <Turnstile
+                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                  options={{ theme: "dark", size: "normal" }}
+                />
+              </div>
+            )}
 
             <Button
               type="submit"
