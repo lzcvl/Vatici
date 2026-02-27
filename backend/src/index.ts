@@ -16,15 +16,24 @@ import meRoute from './routes/me'
 const app = new Hono()
 
 /**
- * CORS middleware - manual headers to ensure compatibility
+ * CORS middleware - allow Vercel frontend origins
  */
 app.use('*', async (c, next) => {
-  c.header('Access-Control-Allow-Origin', '*')
+  const origin = c.req.header('origin') ?? ''
+  const allowed =
+    origin.endsWith('.vercel.app') ||
+    origin === 'http://localhost:3000' ||
+    origin === 'http://localhost:3001'
+
+  const allowOrigin = allowed ? origin : 'https://v0-vatici-three.vercel.app'
+
+  c.header('Access-Control-Allow-Origin', allowOrigin)
   c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  c.header('Vary', 'Origin')
 
   if (c.req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: c.res.headers })
+    return c.body(null, 204)
   }
 
   await next()
