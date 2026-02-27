@@ -20,7 +20,7 @@ interface ApiError {
  * Supports optional Authorization header for authenticated requests
  */
 async function makeRequest<T>(
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
   token?: string // Optional JWT token for authenticated requests
@@ -78,6 +78,13 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
  */
 export async function apiPostAuth<T>(path: string, body: unknown, token: string): Promise<T> {
   return makeRequest<T>('POST', path, body, token)
+}
+
+/**
+ * PATCH request with required auth
+ */
+export async function apiPatchAuth<T>(path: string, body: unknown, token: string): Promise<T> {
+  return makeRequest<T>('PATCH', path, body, token)
 }
 
 /**

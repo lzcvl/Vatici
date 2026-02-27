@@ -361,6 +361,68 @@ export const CPMM_CONFIG = {
 }
 
 // ============================================
+// 6. CALCULATE SELL (Inverse CPMM)
+// ============================================
+
+/**
+ * Calculate payout and new pool state when a user sells shares back to the AMM.
+ *
+ * Selling `shares` of outcome `outcome`:
+ * - Those shares return to the pool (pool for that side grows)
+ * - Other pool side shrinks to maintain k invariant
+ * - User receives the reduction in the other side as payout
+ *
+ * For YES sell (p=0.5):
+ *   newY = y + shares
+ *   newN = (y × n) / newY
+ *   payoutGross = n - newN
+ */
+export function calculateCpmmSell(
+  pool: CpmmPool,
+  p: number,
+  shares: number,
+  outcome: 'YES' | 'NO'
+): {
+  payoutGross: number
+  payoutNet: number
+  newPool: CpmmPool
+  fees: number
+  probBefore: number
+  probAfter: number
+} {
+  if (shares <= 0) throw new Error('Shares to sell must be positive')
+
+  const { YES: y, NO: n } = pool
+  const k = Math.pow(y, p) * Math.pow(n, 1 - p)
+  const probBefore = getCpmmProbability(pool, p)
+
+  let newPool: CpmmPool
+  let payoutGross: number
+
+  if (outcome === 'YES') {
+    const newY = y + shares
+    const newN = Math.pow(k / Math.pow(newY, p), 1 / (1 - p))
+    payoutGross = n - newN
+    newPool = { YES: newY, NO: newN }
+  } else {
+    const newN = n + shares
+    const newY = Math.pow(k / Math.pow(newN, 1 - p), 1 / p)
+    payoutGross = y - newY
+    newPool = { YES: newY, NO: newN }
+  }
+
+  if (payoutGross < 0) {
+    throw new Error('Invalid sell: negative payout (shares too large for current pool)')
+  }
+
+  const fees = Math.round(payoutGross * TAKER_FEE_RATE)
+  const payoutNet = payoutGross - fees
+  const probAfter = getCpmmProbability(newPool, p)
+
+  return { payoutGross, payoutNet, newPool, fees, probBefore, probAfter }
+}
+
+// ============================================
 // EXAMPLES & DOCUMENTATION
 // ============================================
 

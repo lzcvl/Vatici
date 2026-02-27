@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatDate } from "@/lib/mock-data"
-import { apiGetAuth } from "@/lib/api"
+import { apiGetAuth, apiPostAuth, apiPatchAuth } from "@/lib/api"
 import { User, Shield, Bell, Trash2, Check, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -56,13 +56,22 @@ export function AccountPage() {
 
   if (!session?.user) return null
 
-  function handleSaveProfile(e: React.FormEvent) {
+  const [profileError, setProfileError] = useState("")
+
+  async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
-    setProfileSaved(true)
-    setTimeout(() => setProfileSaved(false), 3000)
+    setProfileError("")
+    if (!session?.accessToken) return
+    try {
+      await apiPatchAuth('/me/profile', { name }, session.accessToken)
+      setProfileSaved(true)
+      setTimeout(() => setProfileSaved(false), 3000)
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Erro ao salvar perfil.")
+    }
   }
 
-  function handleChangePassword(e: React.FormEvent) {
+  async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault()
     setPasswordError("")
     setPasswordChanged(false)
@@ -75,12 +84,21 @@ export function AccountPage() {
       setPasswordError(t("auth.errors.passwordMismatch"))
       return
     }
+    if (!session?.accessToken) return
 
-    setPasswordChanged(true)
-    setCurrentPassword("")
-    setNewPassword("")
-    setConfirmNewPassword("")
-    setTimeout(() => setPasswordChanged(false), 3000)
+    try {
+      await apiPostAuth('/me/change-password', {
+        currentPassword,
+        newPassword,
+      }, session.accessToken)
+      setPasswordChanged(true)
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmNewPassword("")
+      setTimeout(() => setPasswordChanged(false), 3000)
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Erro ao alterar senha.")
+    }
   }
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -176,7 +194,9 @@ export function AccountPage() {
             </div>
           </div>
 
-          {/* Success message */}
+          {profileError && (
+            <p className="text-sm text-destructive">{profileError}</p>
+          )}
           {profileSaved && (
             <div className="flex items-center gap-2 rounded-lg bg-success/10 px-4 py-3 text-sm text-success">
               <Check className="h-4 w-4" />

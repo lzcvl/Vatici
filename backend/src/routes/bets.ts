@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { placeBet, getMarketBets, BetError } from '../db/bets'
+import { placeBet, sellPosition, getMarketBets, BetError } from '../db/bets'
 import type { ErrorResponse } from '../mappers'
 import { verifyAuth } from '../middleware/auth'
 
@@ -69,6 +69,48 @@ app.post('/', async (c) => {
     }
 
     return c.json({ error: 'Failed to place bet' } as ErrorResponse, 500)
+  }
+})
+
+/**
+ * POST /bets/sell
+ * Sell a position back to the AMM
+ *
+ * Body: { marketId, direction: 'YES'|'NO', shares }  (shares in fractional units)
+ */
+app.post('/sell', async (c) => {
+  try {
+    const userId = await verifyAuth(c)
+    const body = await c.req.json<{
+      marketId?: string
+      direction?: 'YES' | 'NO'
+      shares?: number
+    }>()
+
+    if (!body.marketId || !body.direction || !body.shares) {
+      return c.json({ error: 'Missing required fields: marketId, direction, shares' } as ErrorResponse, 400)
+    }
+    if (!['YES', 'NO'].includes(body.direction)) {
+      return c.json({ error: 'Invalid direction' } as ErrorResponse, 400)
+    }
+    if (body.shares <= 0) {
+      return c.json({ error: 'Shares must be greater than 0' } as ErrorResponse, 400)
+    }
+
+    const { payout } = await sellPosition({
+      userId,
+      marketId: body.marketId,
+      direction: body.direction,
+      sharesToSell: body.shares,
+    })
+
+    return c.json({ payout }, 200)
+  } catch (err) {
+    console.error('POST /bets/sell error:', err)
+    if (err instanceof BetError) {
+      return c.json({ error: err.message } as ErrorResponse, err.statusCode as 422)
+    }
+    return c.json({ error: 'Failed to sell position' } as ErrorResponse, 500)
   }
 })
 

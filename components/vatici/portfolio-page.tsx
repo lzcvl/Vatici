@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatPercent, getNoPrice } from "@/lib/mock-data"
-import { apiGetAuth } from "@/lib/api"
+import { apiGetAuth, apiPostAuth } from "@/lib/api"
 import type { FrontendMarket, ResolvedPosition } from "@/lib/api-types"
 import { Button } from "@/components/ui/button"
 import {
@@ -57,6 +57,7 @@ export function PortfolioPage() {
   const [loading, setLoading] = useState(true)
   const [loadingResolved, setLoadingResolved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sellingId, setSellingId] = useState<string | null>(null)
 
   // Fetch positions and balance on mount
   useEffect(() => {
@@ -147,6 +148,29 @@ export function PortfolioPage() {
       value: +(base + (totalProfit / months.length) * (i + 1) + (Math.sin(i * 1.5) * base * 0.04)).toFixed(2),
     }))
   }, [totalInvested, totalProfit])
+
+  async function handleSellPosition(marketId: string, direction: 'YES' | 'NO', shares: number) {
+    if (!session?.accessToken) return
+    const id = `${marketId}-${direction}`
+    setSellingId(id)
+    try {
+      await apiPostAuth<{ payout: number }>('/bets/sell', {
+        marketId,
+        direction,
+        shares,
+      }, session.accessToken)
+      // Remove position from list after sell
+      setPositions((prev) => prev.filter((p) => !(p.marketId === marketId && p.direction === direction)))
+      // Refresh balance
+      apiGetAuth<{ balance: number }>('/me/balance', session.accessToken!)
+        .then((data) => setBalance(data.balance))
+        .catch(() => {})
+    } catch (err) {
+      console.error('Sell failed:', err)
+    } finally {
+      setSellingId(null)
+    }
+  }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(sortDir === "desc" ? "asc" : "desc")
@@ -414,8 +438,13 @@ export function PortfolioPage() {
                           {t("home.viewAll")}
                         </Link>
                       </Button>
-                      <Button size="sm" className="bg-destructive/15 text-destructive text-xs hover:bg-destructive/25">
-                        {t("market.sell")}
+                      <Button
+                        size="sm"
+                        className="bg-destructive/15 text-destructive text-xs hover:bg-destructive/25"
+                        disabled={sellingId === bet.id}
+                        onClick={() => handleSellPosition(bet.marketId, bet.direction, bet.shares)}
+                      >
+                        {sellingId === bet.id ? "Vendendo..." : t("market.sell")}
                       </Button>
                     </div>
                   </div>

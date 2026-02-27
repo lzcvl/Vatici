@@ -11,6 +11,7 @@ import { sql } from '../db/client'
 import { mapBalance } from '../mappers'
 import type { ErrorResponse } from '../mappers'
 import { verifyAuth } from '../middleware/auth'
+import { compareSync, hashSync } from 'bcryptjs'
 
 const app = new Hono()
 
@@ -255,6 +256,93 @@ app.get('/resolved-positions', async (c) => {
   } catch (err) {
     console.error('GET /me/resolved-positions error:', err)
     return c.json({ error: 'Failed to fetch resolved positions' } as ErrorResponse, 500)
+  }
+})
+
+/**
+ * GET /me/position/:marketId
+ * Returns user's position for a specific market (for sell panel).
+ */
+app.get('/position/:marketId', async (c) => {
+  try {
+    const userId = await verifyAuth(c)
+    const { marketId } = c.req.param()
+
+    const rows = (await sql`
+      SELECT outcome, shares, invested_amount
+      FROM user_positions
+      WHERE user_id = ${userId} AND market_id = ${marketId} AND answer_id IS NULL
+    `) as Array<{ outcome: string; shares: number; invested_amount: number }>
+
+    const positions = rows.map((r) => ({
+      direction: r.outcome,
+      shares: r.shares / 100,
+      investedAmount: r.invested_amount / 100,
+    }))
+
+    return c.json(positions)
+  } catch (err) {
+    console.error('GET /me/position/:marketId error:', err)
+    return c.json({ error: 'Failed to fetch position' } as ErrorResponse, 500)
+  }
+})
+
+/**
+ * PATCH /me/profile
+ * Update user display name.
+ */
+app.patch('/profile', async (c) => {
+  try {
+    const userId = await verifyAuth(c)
+    const body = await c.req.json<{ name?: string }>()
+
+    if (!body.name || body.name.trim().length < 2) {
+      return c.json({ error: 'Name must be at least 2 characters' } as ErrorResponse, 400)
+    }
+
+    await sql`UPDATE users SET name = ${body.name.trim()} WHERE id = ${userId}`
+
+    return c.json({ success: true, name: body.name.trim() })
+  } catch (err) {
+    console.error('PATCH /me/profile error:', err)
+    return c.json({ error: 'Failed to update profile' } as ErrorResponse, 500)
+  }
+})
+
+/**
+ * POST /me/change-password
+ * Verify current password then update to new password.
+ */
+app.post('/change-password', async (c) => {
+  try {
+    const userId = await verifyAuth(c)
+    const body = await c.req.json<{ currentPassword?: string; newPassword?: string }>()
+
+    if (!body.currentPassword || !body.newPassword) {
+      return c.json({ error: 'Missing currentPassword or newPassword' } as ErrorResponse, 400)
+    }
+    if (body.newPassword.length < 6) {
+      return c.json({ error: 'New password must be at least 6 characters' } as ErrorResponse, 400)
+    }
+
+    const rows = (await sql`
+      SELECT password_hash FROM users WHERE id = ${userId} LIMIT 1
+    `) as { password_hash: string }[]
+
+    if (!rows[0]) return c.json({ error: 'User not found' } as ErrorResponse, 404)
+
+    const valid = compareSync(body.currentPassword, rows[0].password_hash)
+    if (!valid) {
+      return c.json({ error: 'Senha atual incorreta.' } as ErrorResponse, 422)
+    }
+
+    const newHash = hashSync(body.newPassword, 10)
+    await sql`UPDATE users SET password_hash = ${newHash} WHERE id = ${userId}`
+
+    return c.json({ success: true })
+  } catch (err) {
+    console.error('POST /me/change-password error:', err)
+    return c.json({ error: 'Failed to change password' } as ErrorResponse, 500)
   }
 })
 

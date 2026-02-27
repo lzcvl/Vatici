@@ -8,7 +8,7 @@
 import { pool } from './client'
 import type { DbBet } from '../mappers'
 import { sql } from './client'
-import { calculateCpmmPurchase } from '../lib/cpmm'
+import { calculateCpmmPurchase, calculateCpmmSell } from '../lib/cpmm'
 
 /**
  * Typed error for bet placement failures
@@ -195,6 +195,112 @@ export async function getUserBets(userId: string, limit = 50): Promise<DbBet[]> 
   } catch (err) {
     console.error('getUserBets error:', err)
     throw err
+  }
+}
+
+/**
+ * Sell a position atomically.
+ * Inverse of placeBet: returns shares to the CPMM pool and credits user balance.
+ *
+ * @returns payout in BRL (net of fees)
+ */
+export async function sellPosition(data: {
+  userId: string
+  marketId: string
+  direction: 'YES' | 'NO'
+  sharesToSell: number // fractional shares (stored_shares / 100)
+}): Promise<{ payout: number }> {
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    // 1. Lock and verify user position
+    const posResult = await client.query<{ shares: number; invested_amount: number }>(
+      `SELECT shares, invested_amount FROM user_positions
+       WHERE user_id = $1 AND market_id = $2 AND outcome = $3 AND answer_id IS NULL
+       FOR UPDATE`,
+      [data.userId, data.marketId, data.direction]
+    )
+    const pos = posResult.rows[0]
+    if (!pos) {
+      throw new BetError('MARKET_NOT_FOUND_OR_CLOSED', 422, 'Posição não encontrada.')
+    }
+
+    const storedSharesToSell = Math.round(data.sharesToSell * 100)
+    if (pos.shares < storedSharesToSell) {
+      throw new BetError('INSUFFICIENT_BALANCE', 422, 'Cotas insuficientes para vender.')
+    }
+
+    // 2. Lock and read market pool
+    const mktResult = await client.query<{ pool_yes: number; pool_no: number; status: string }>(
+      'SELECT pool_yes, pool_no, status FROM markets WHERE id = $1 FOR UPDATE',
+      [data.marketId]
+    )
+    const market = mktResult.rows[0]
+    if (!market || market.status !== 'open') {
+      throw new BetError('MARKET_NOT_FOUND_OR_CLOSED', 422, 'Mercado não encontrado ou encerrado.')
+    }
+
+    // 3. Calculate CPMM sell (fractional shares in pool-consistent units = cents)
+    const result = calculateCpmmSell(
+      { YES: market.pool_yes, NO: market.pool_no },
+      0.5,
+      data.sharesToSell, // fractional
+      data.direction
+    )
+
+    const payoutCents = Math.round(result.payoutNet)
+    if (payoutCents <= 0) {
+      throw new BetError('INSUFFICIENT_BALANCE', 422, 'Payout seria zero ou negativo.')
+    }
+
+    // 4. Credit user balance
+    await client.query(
+      'UPDATE user_balances SET balance = balance + $1 WHERE user_id = $2',
+      [payoutCents, data.userId]
+    )
+
+    // 5. Update market pool
+    await client.query(
+      'UPDATE markets SET pool_yes = $1, pool_no = $2 WHERE id = $3',
+      [Math.round(result.newPool.YES), Math.round(result.newPool.NO), data.marketId]
+    )
+
+    // 6. Reduce or remove user position
+    if (pos.shares <= storedSharesToSell) {
+      await client.query(
+        'DELETE FROM user_positions WHERE user_id = $1 AND market_id = $2 AND outcome = $3 AND answer_id IS NULL',
+        [data.userId, data.marketId, data.direction]
+      )
+    } else {
+      const proportionSold = storedSharesToSell / pos.shares
+      const investedReduction = Math.round(pos.invested_amount * proportionSold)
+      await client.query(
+        `UPDATE user_positions
+         SET shares = shares - $1,
+             invested_amount = invested_amount - $2,
+             updated_at = NOW()
+         WHERE user_id = $3 AND market_id = $4 AND outcome = $5 AND answer_id IS NULL`,
+        [storedSharesToSell, investedReduction, data.userId, data.marketId, data.direction]
+      )
+    }
+
+    // 7. Audit log
+    await client.query(
+      `INSERT INTO transactions (user_id, type, market_id, amount, created_at)
+       VALUES ($1, 'bet_sold', $2, $3, NOW())`,
+      [data.userId, data.marketId, payoutCents]
+    )
+
+    await client.query('COMMIT')
+    return { payout: payoutCents / 100 }
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('sellPosition error (rolled back):', err)
+    throw err
+  } finally {
+    client.release()
   }
 }
 

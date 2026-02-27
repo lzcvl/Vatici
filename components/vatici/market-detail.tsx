@@ -14,6 +14,13 @@ import { OrigamiDiamond, OrigamiArrowUp, OrigamiArrowDown } from "./origami-icon
 import { MarketCard } from "./market-card"
 import { ProbabilityChart } from "./probability-chart"
 
+// ── Position type for sell panel ───────────────────────────
+interface MarketPosition {
+  direction: "YES" | "NO"
+  shares: number
+  investedAmount: number
+}
+
 // ── Binary trading sidebar ──────────────────────────────────
 function BinaryTradingPanel({ market, accessToken }: { market: FrontendMarket; accessToken?: string }) {
   const { t } = useI18n()
@@ -24,12 +31,27 @@ function BinaryTradingPanel({ market, accessToken }: { market: FrontendMarket; a
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState(false)
 
+  // Sell panel state
+  const [positions, setPositions] = useState<MarketPosition[]>([])
+  const [loadingPositions, setLoadingPositions] = useState(false)
+
   const yesPercent = Math.round(market.probability * 100)
   const noPercent = Math.round(getNoPrice(market) * 100)
   const price = side === "YES" ? market.probability : getNoPrice(market)
   const numericAmount = parseFloat(amount) || 0
   const shares = numericAmount > 0 ? numericAmount / price : 0
   const potentialReturn = shares - numericAmount
+
+  // Fetch user's positions when sell tab is selected
+  useEffect(() => {
+    if (action === "sell" && accessToken) {
+      setLoadingPositions(true)
+      apiGetAuth<MarketPosition[]>(`/me/position/${market.id}`, accessToken)
+        .then(setPositions)
+        .catch(() => setPositions([]))
+        .finally(() => setLoadingPositions(false))
+    }
+  }, [action, accessToken, market.id])
 
   // Handle bet submission
   const handlePlaceBet = async () => {
@@ -38,14 +60,12 @@ function BinaryTradingPanel({ market, accessToken }: { market: FrontendMarket; a
       setSubmitError(null)
       setSubmitSuccess(false)
 
-      // Convert BRL to cents (API expects cents)
-      const amountInCents = Math.round(numericAmount * 100)
-
       if (!accessToken) {
         setSubmitError('Você precisa estar logado para apostar.')
         return
       }
 
+      const amountInCents = Math.round(numericAmount * 100)
       const betResponse = await apiPostAuth<{ id: string }>('/bets', {
         marketId: market.id,
         direction: side,
@@ -54,14 +74,42 @@ function BinaryTradingPanel({ market, accessToken }: { market: FrontendMarket; a
 
       if (betResponse.id) {
         setSubmitSuccess(true)
-        setAmount("") // Reset form
+        setAmount("")
         setTimeout(() => setSubmitSuccess(false), 3000)
       }
     } catch (err) {
       console.error('Failed to place bet:', err)
-      setSubmitError(
-        err instanceof Error ? err.message : 'Failed to place bet. Please try again.'
-      )
+      setSubmitError(err instanceof Error ? err.message : 'Falha ao apostar.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Handle sell submission
+  const handleSell = async (pos: MarketPosition) => {
+    try {
+      setIsSubmitting(true)
+      setSubmitError(null)
+      setSubmitSuccess(false)
+
+      if (!accessToken) {
+        setSubmitError('Você precisa estar logado.')
+        return
+      }
+
+      const res = await apiPostAuth<{ payout: number }>('/bets/sell', {
+        marketId: market.id,
+        direction: pos.direction,
+        shares: pos.shares,
+      }, accessToken)
+
+      setSubmitSuccess(true)
+      setPositions((prev) => prev.filter((p) => p.direction !== pos.direction))
+      setTimeout(() => setSubmitSuccess(false), 4000)
+      const _ = res // payout available but we show generic success
+    } catch (err) {
+      console.error('Failed to sell:', err)
+      setSubmitError(err instanceof Error ? err.message : 'Falha ao vender posição.')
     } finally {
       setIsSubmitting(false)
     }
@@ -95,74 +143,124 @@ function BinaryTradingPanel({ market, accessToken }: { market: FrontendMarket; a
         </button>
       </div>
 
-      {/* Yes/No Selector */}
-      <div className="mb-4">
-        <label className="mb-2 block text-xs font-medium text-muted-foreground">Outcome</label>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setSide("YES")}
-            className={`flex-1 rounded-lg border px-4 py-3 text-center transition-all ${
-              side === "YES" ? "border-success bg-success/10 text-success" : "border-border text-muted-foreground hover:border-border/80"
-            }`}
+      {action === "buy" ? (
+        <>
+          {/* Yes/No Selector */}
+          <div className="mb-4">
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">Outcome</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSide("YES")}
+                className={`flex-1 rounded-lg border px-4 py-3 text-center transition-all ${
+                  side === "YES" ? "border-success bg-success/10 text-success" : "border-border text-muted-foreground hover:border-border/80"
+                }`}
+              >
+                <div className="text-xs font-medium">{t("market.yes")}</div>
+                <div className="text-lg font-bold">{yesPercent}%</div>
+              </button>
+              <button
+                onClick={() => setSide("NO")}
+                className={`flex-1 rounded-lg border px-4 py-3 text-center transition-all ${
+                  side === "NO" ? "border-destructive bg-destructive/10 text-destructive" : "border-border text-muted-foreground hover:border-border/80"
+                }`}
+              >
+                <div className="text-xs font-medium">{t("market.no")}</div>
+                <div className="text-lg font-bold">{noPercent}%</div>
+              </button>
+            </div>
+          </div>
+
+          <AmountInput amount={amount} setAmount={setAmount} />
+
+          {/* Buy summary */}
+          <div className="mb-4 rounded-lg bg-secondary p-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{t("detail.price")}</span>
+              <span className="text-foreground">R$ {price.toFixed(2)}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{t("detail.shares")}</span>
+              <span className="text-foreground">{shares.toFixed(2)}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{t("detail.potentialReturn")}</span>
+              <span className="font-bold text-success">
+                +R$ {potentialReturn > 0 ? potentialReturn.toFixed(2) : "0,00"}
+              </span>
+            </div>
+          </div>
+
+          {submitError && (
+            <div className="mb-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{submitError}</div>
+          )}
+          {submitSuccess && (
+            <div className="mb-3 rounded-lg bg-success/10 p-3 text-sm text-success">✓ Aposta realizada!</div>
+          )}
+
+          <Button
+            onClick={handlePlaceBet}
+            className="w-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+            disabled={numericAmount <= 0 || isSubmitting}
           >
-            <div className="text-xs font-medium">{t("market.yes")}</div>
-            <div className="text-lg font-bold">{yesPercent}%</div>
-          </button>
-          <button
-            onClick={() => setSide("NO")}
-            className={`flex-1 rounded-lg border px-4 py-3 text-center transition-all ${
-              side === "NO" ? "border-destructive bg-destructive/10 text-destructive" : "border-border text-muted-foreground hover:border-border/80"
-            }`}
-          >
-            <div className="text-xs font-medium">{t("market.no")}</div>
-            <div className="text-lg font-bold">{noPercent}%</div>
-          </button>
-        </div>
-      </div>
+            {isSubmitting ? t("detail.placingBet") || "Fazendo aposta..." : t("detail.placeBet")}
+          </Button>
+        </>
+      ) : (
+        /* ── Sell Panel ── */
+        <>
+          {!accessToken ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Faça login para ver suas posições.</p>
+          ) : loadingPositions ? (
+            <div className="py-8 text-center">
+              <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : positions.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Você não tem posições neste mercado.</p>
+          ) : (
+            <div className="space-y-3">
+              {positions.map((pos) => {
+                const currentProb = pos.direction === "YES" ? market.probability : getNoPrice(market)
+                const estimatedPayout = pos.shares * currentProb * 0.98 // ~2% fee approximation
+                return (
+                  <div key={pos.direction} className="rounded-lg border border-border bg-secondary/30 p-3">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className={`rounded px-2 py-0.5 text-xs font-bold ${
+                        pos.direction === "YES" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
+                      }`}>{pos.direction}</span>
+                      <span className="text-xs text-muted-foreground">{pos.shares.toFixed(2)} cotas</span>
+                    </div>
+                    <div className="mb-3 space-y-1 text-xs text-muted-foreground">
+                      <div className="flex justify-between">
+                        <span>Investido</span>
+                        <span>{formatBRL(pos.investedAmount)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Retorno estimado</span>
+                        <span className="text-foreground">≈ {formatBRL(estimatedPayout)}</span>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full bg-destructive/15 text-destructive hover:bg-destructive/25"
+                      onClick={() => handleSell(pos)}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? "Vendendo..." : `Vender todas as cotas ${pos.direction}`}
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-      <AmountInput amount={amount} setAmount={setAmount} />
-
-      {/* Summary */}
-      <div className="mb-4 rounded-lg bg-secondary p-3">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">{t("detail.price")}</span>
-          <span className="text-foreground">R$ {price.toFixed(2)}</span>
-        </div>
-        <div className="mt-2 flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">{t("detail.shares")}</span>
-          <span className="text-foreground">{shares.toFixed(2)}</span>
-        </div>
-        <div className="mt-2 flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">{t("detail.potentialReturn")}</span>
-          <span className="font-bold text-success">
-            +R$ {potentialReturn > 0 ? potentialReturn.toFixed(2) : "0,00"}
-          </span>
-        </div>
-      </div>
-
-      {submitError && (
-        <div className="mb-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-          {submitError}
-        </div>
+          {submitError && (
+            <div className="mt-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{submitError}</div>
+          )}
+          {submitSuccess && (
+            <div className="mt-3 rounded-lg bg-success/10 p-3 text-sm text-success">✓ Posição vendida com sucesso!</div>
+          )}
+        </>
       )}
-
-      {submitSuccess && (
-        <div className="mb-3 rounded-lg bg-success/10 p-3 text-sm text-success">
-          ✓ Aposta realizada com sucesso!
-        </div>
-      )}
-
-      <Button
-        onClick={handlePlaceBet}
-        className={`w-full font-semibold ${
-          action === "buy"
-            ? "bg-primary text-primary-foreground hover:bg-primary/90"
-            : "bg-destructive text-primary-foreground hover:bg-destructive/90"
-        }`}
-        disabled={numericAmount <= 0 || isSubmitting}
-      >
-        {isSubmitting ? t("detail.placingBet") || "Fazendo aposta..." : t("detail.placeBet")}
-      </Button>
     </>
   )
 }
