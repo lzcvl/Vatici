@@ -89,6 +89,14 @@ export interface ResolutionInfo {
   createdAt: string
 }
 
+export interface Comment {
+  id: string
+  body: string
+  authorName: string
+  parentId: string | null
+  createdAt: string
+}
+
 export interface ResolvedPosition {
   marketId: string
   payout: number // BRL

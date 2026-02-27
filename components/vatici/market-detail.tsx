@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, TrendingUp, Clock, Share2, Bookmark, Loader2, CheckCircle, AlertTriangle } from "lucide-react"
+import { ArrowLeft, TrendingUp, Clock, Share2, Bookmark, Loader2, CheckCircle, AlertTriangle, MessageSquare, Trash2 } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatPercent, formatDateShort, getNoPrice } from "@/lib/mock-data"
-import { apiGet, apiGetAuth, apiPostAuth } from "@/lib/api"
-import type { FrontendMarket, ResolutionInfo } from "@/lib/api-types"
+import { apiGet, apiGetAuth, apiPostAuth, apiDelete } from "@/lib/api"
+import type { FrontendMarket, ResolutionInfo, Comment } from "@/lib/api-types"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OrigamiDiamond, OrigamiArrowUp, OrigamiArrowDown } from "./origami-icons"
@@ -600,6 +600,142 @@ function ResolutionPanel({
   return null
 }
 
+// ── Comments Section ────────────────────────────────────────
+function CommentsSection({ marketId, accessToken }: { marketId: string; accessToken?: string }) {
+  const [comments, setComments] = useState<Comment[]>([])
+  const [loadingComments, setLoadingComments] = useState(true)
+  const [commentBody, setCommentBody] = useState("")
+  const [posting, setPosting] = useState(false)
+  const [postError, setPostError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoadingComments(true)
+    apiGet<Comment[]>(`/comments/${marketId}`)
+      .then(setComments)
+      .catch(() => setComments([]))
+      .finally(() => setLoadingComments(false))
+  }, [marketId])
+
+  async function handlePost(e: React.FormEvent) {
+    e.preventDefault()
+    if (!commentBody.trim() || !accessToken) return
+    setPosting(true)
+    setPostError(null)
+    try {
+      const newComment = await apiPostAuth<Comment>(
+        `/comments/${marketId}`,
+        { body: commentBody.trim() },
+        accessToken,
+      )
+      setComments((prev) => [...prev, newComment])
+      setCommentBody("")
+    } catch (err) {
+      setPostError(err instanceof Error ? err.message : "Erro ao postar comentário.")
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  async function handleDelete(commentId: string) {
+    if (!accessToken) return
+    try {
+      await apiDelete(`/comments/${commentId}`, accessToken)
+      setComments((prev) => prev.filter((c) => c.id !== commentId))
+    } catch {
+      // silently ignore
+    }
+  }
+
+  return (
+    <div className="mb-6">
+      <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-foreground">
+        <MessageSquare className="h-5 w-5" />
+        Comentários
+        {comments.length > 0 && (
+          <span className="text-sm font-normal text-muted-foreground">({comments.length})</span>
+        )}
+      </h3>
+
+      {/* Post form */}
+      {accessToken ? (
+        <form onSubmit={handlePost} className="mb-5">
+          <textarea
+            value={commentBody}
+            onChange={(e) => setCommentBody(e.target.value)}
+            placeholder="Escreva um comentário..."
+            rows={3}
+            maxLength={2000}
+            className="w-full rounded-lg border border-border bg-secondary px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+          />
+          {postError && (
+            <p className="mt-1 text-xs text-destructive">{postError}</p>
+          )}
+          <div className="mt-2 flex justify-end">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!commentBody.trim() || posting}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Publicar"}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <p className="mb-5 text-sm text-muted-foreground">
+          Faça login para comentar.
+        </p>
+      )}
+
+      {/* Comment list */}
+      {loadingComments ? (
+        <div className="py-6 text-center">
+          <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          Nenhum comentário ainda. Seja o primeiro!
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {comments.map((comment) => (
+            <div key={comment.id} className="flex gap-3 rounded-xl border border-border bg-card p-4">
+              {/* Avatar */}
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+                {comment.authorName.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-foreground">{comment.authorName}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(comment.createdAt).toLocaleDateString("pt-BR", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                    {accessToken && (
+                      <button
+                        onClick={() => handleDelete(comment.id)}
+                        className="rounded p-0.5 text-muted-foreground/50 transition-colors hover:text-destructive"
+                        title="Deletar comentário"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="whitespace-pre-wrap text-sm text-muted-foreground">{comment.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Page ───────────────────────────────────────────────
 export function MarketDetail({ marketId }: { marketId: string }) {
   const { t, locale } = useI18n()
@@ -894,6 +1030,9 @@ export function MarketDetail({ marketId }: { marketId: string }) {
               Save
             </Button>
           </div>
+
+          {/* Comments */}
+          <CommentsSection marketId={marketId} accessToken={session?.accessToken} />
 
           {/* Related Markets */}
           {relatedMarkets.length > 0 && (
