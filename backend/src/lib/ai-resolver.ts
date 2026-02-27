@@ -104,7 +104,7 @@ async function queryGemini(market: MarketForAi): Promise<AiResolutionResult> {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set')
 
   const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
   const prompt = buildPrompt(market)
 
   const res = await model.generateContent(prompt)
