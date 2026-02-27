@@ -8,7 +8,6 @@
 import 'dotenv/config'
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
-import { cors } from 'hono/cors'
 import { healthCheck } from './db/client'
 import marketsRoute from './routes/markets'
 import betsRoute from './routes/bets'
@@ -17,18 +16,19 @@ import meRoute from './routes/me'
 const app = new Hono()
 
 /**
- * CORS middleware
- * Allow requests from any origin (MVP mode)
- * TODO: Restrict to FRONTEND_URL in production
+ * CORS middleware - manual headers to ensure compatibility
  */
-app.use(
-  '*',
-  cors({
-    origin: (origin) => origin || '*',
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
-  })
-)
+app.use('*', async (c, next) => {
+  c.header('Access-Control-Allow-Origin', '*')
+  c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+
+  if (c.req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: c.res.headers })
+  }
+
+  await next()
+})
 
 /**
  * Health check route
