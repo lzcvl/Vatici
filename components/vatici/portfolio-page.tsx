@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatPercent, getNoPrice } from "@/lib/mock-data"
 import { apiGetAuth } from "@/lib/api"
-import type { FrontendMarket } from "@/lib/api-types"
+import type { FrontendMarket, ResolvedPosition } from "@/lib/api-types"
 import { Button } from "@/components/ui/button"
 import {
   ArrowUpRight,
@@ -52,8 +52,10 @@ export function PortfolioPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [expandedBet, setExpandedBet] = useState<string | null>(null)
   const [positions, setPositions] = useState<UserPosition[]>([])
+  const [resolvedPositions, setResolvedPositions] = useState<ResolvedPosition[]>([])
   const [balance, setBalance] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingResolved, setLoadingResolved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Fetch positions and balance on mount
@@ -80,6 +82,16 @@ export function PortfolioPage() {
       .then((data) => setBalance(data.balance))
       .catch(() => setBalance(null))
   }, [session?.accessToken])
+
+  // Fetch resolved positions when "Fechados" tab is selected
+  useEffect(() => {
+    if (tab !== 'closed' || !session?.accessToken) return
+    setLoadingResolved(true)
+    apiGetAuth<ResolvedPosition[]>('/me/resolved-positions', session.accessToken!)
+      .then((data) => setResolvedPositions(data || []))
+      .catch(() => setResolvedPositions([]))
+      .finally(() => setLoadingResolved(false))
+  }, [tab, session?.accessToken])
 
   // Transform positions to enriched bets format
   const enrichedBets = useMemo(() => {
@@ -415,16 +427,48 @@ export function PortfolioPage() {
       )}
 
       {tab === "closed" && (
-        <div className="rounded-xl border border-border bg-card px-5 py-16 text-center">
-          <OrigamiCrane className="mx-auto mb-4 h-12 w-12 text-muted-foreground/20" />
-          <p className="text-sm text-muted-foreground">{t("portfolio.noPositions")}</p>
-        </div>
-      )}
-
-      {tab === "watchlist" && (
-        <div className="rounded-xl border border-border bg-card px-5 py-16 text-center">
-          <OrigamiCrane className="mx-auto mb-4 h-12 w-12 text-muted-foreground/20" />
-          <p className="text-sm text-muted-foreground">{t("portfolio.noPositions")}</p>
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          {loadingResolved ? (
+            <div className="px-5 py-16 text-center">
+              <p className="text-sm text-muted-foreground">{t("general.loading")}</p>
+            </div>
+          ) : resolvedPositions.length === 0 ? (
+            <div className="px-5 py-16 text-center">
+              <OrigamiCrane className="mx-auto mb-4 h-12 w-12 text-muted-foreground/20" />
+              <p className="text-sm text-muted-foreground">{t("resolution.noClosedPositions")}</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {resolvedPositions.map((rp) => {
+                const isWin = rp.payout > 0
+                return (
+                  <div key={`${rp.marketId}-${rp.payoutAt}`} className="flex items-center justify-between px-5 py-4">
+                    <div className="flex-1 min-w-0">
+                      <Link
+                        href={`/mercado/${rp.marketId}`}
+                        className="text-sm font-medium text-foreground hover:text-primary transition-colors line-clamp-1"
+                      >
+                        {rp.market?.question[locale] ?? rp.marketId}
+                      </Link>
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className={`font-semibold ${rp.resolution === 'YES' ? 'text-success' : 'text-destructive'}`}>
+                          {rp.resolution ?? '—'}
+                        </span>
+                        <span>&middot;</span>
+                        <span>{t("resolution.resolvedOn")} {new Date(rp.resolvedAt ?? rp.payoutAt).toLocaleDateString(locale === 'pt' ? 'pt-BR' : locale)}</span>
+                      </div>
+                    </div>
+                    <div className="ml-4 text-right shrink-0">
+                      <div className={`text-sm font-bold ${isWin ? 'text-success' : 'text-muted-foreground'}`}>
+                        {isWin ? '+' : ''}{formatBRL(rp.payout)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{t("resolution.payoutReceived")}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

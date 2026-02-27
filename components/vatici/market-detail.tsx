@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, TrendingUp, Clock, Share2, Bookmark } from "lucide-react"
+import { ArrowLeft, TrendingUp, Clock, Share2, Bookmark, Loader2, CheckCircle, AlertTriangle } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatPercent, formatDateShort, getNoPrice } from "@/lib/mock-data"
-import { apiGet, apiPostAuth } from "@/lib/api"
-import type { FrontendMarket } from "@/lib/api-types"
+import { apiGet, apiGetAuth, apiPostAuth } from "@/lib/api"
+import type { FrontendMarket, ResolutionInfo } from "@/lib/api-types"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OrigamiDiamond, OrigamiArrowUp, OrigamiArrowDown } from "./origami-icons"
@@ -371,14 +371,165 @@ function AmountInput({
   )
 }
 
+// ── Resolution Panel ────────────────────────────────────────
+function ResolutionPanel({
+  market,
+  resolution,
+  onVote,
+  voteMsg,
+  isVoting,
+}: {
+  market: FrontendMarket
+  resolution: ResolutionInfo | null
+  onVote: (vote: 'confirm' | 'dispute') => void
+  voteMsg: string | null
+  isVoting: boolean
+}) {
+  const { t } = useI18n()
+  const { data: session } = useSession()
+
+  if (market.status === 'closed' || market.status === 'ai_resolving') {
+    return (
+      <div className="flex items-center gap-3 rounded-lg bg-muted/60 border border-border p-4">
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">{t("resolution.aiAnalyzing")}</p>
+      </div>
+    )
+  }
+
+  if (market.status === 'ai_uncertain') {
+    return (
+      <div className="flex items-center gap-3 rounded-lg bg-warning/10 border border-warning/20 p-4">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+        <p className="text-sm text-warning">{t("resolution.aiUncertain")}</p>
+      </div>
+    )
+  }
+
+  if (market.status === 'disputed') {
+    return (
+      <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
+        <p className="text-sm font-semibold text-destructive">{t("resolution.disputed")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("resolution.disputed.body")}</p>
+      </div>
+    )
+  }
+
+  if (market.status === 'resolved') {
+    return (
+      <div className="rounded-lg bg-success/10 border border-success/20 p-4">
+        <div className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-success" />
+          <span className="text-sm font-semibold text-success">
+            {t("resolution.resolved")}: {market.resolution ?? '—'}
+          </span>
+        </div>
+        {resolution?.aiGroqReasoning && (
+          <p className="mt-2 text-xs text-muted-foreground">{resolution.aiGroqReasoning}</p>
+        )}
+      </div>
+    )
+  }
+
+  if (market.status === 'pending_resolution' && resolution) {
+    const resolvesAt = resolution.resolvesAt ? new Date(resolution.resolvesAt) : null
+    const hoursLeft = resolvesAt
+      ? Math.max(0, Math.ceil((resolvesAt.getTime() - Date.now()) / 3_600_000))
+      : 0
+
+    return (
+      <div className="rounded-lg bg-warning/10 border border-warning/20 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-warning">{t("resolution.pendingTitle")}</span>
+          <span className="text-xs text-muted-foreground">{hoursLeft}{t("resolution.hoursRemaining")}</span>
+        </div>
+
+        <div className="rounded-md bg-background/60 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">{t("resolution.proposedResult")} </span>
+          <span className="font-bold text-foreground">{resolution.result ?? '—'}</span>
+        </div>
+
+        {(resolution.aiGroqReasoning || resolution.aiGeminiReasoning) && (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              {t("resolution.aiAnalysis")}
+            </summary>
+            <div className="mt-2 space-y-1 rounded-md bg-background/40 p-2">
+              {resolution.aiGroqReasoning && (
+                <p><span className="font-medium">{t("resolution.groqSays")}</span> {resolution.aiGroqReasoning} ({resolution.aiGroqConfidence}% {t("resolution.confidence")})</p>
+              )}
+              {resolution.aiGeminiReasoning && (
+                <p><span className="font-medium">{t("resolution.geminiSays")}</span> {resolution.aiGeminiReasoning} ({resolution.aiGeminiConfidence}% {t("resolution.confidence")})</p>
+              )}
+            </div>
+          </details>
+        )}
+
+        {voteMsg && (
+          <p className="text-xs text-success">{voteMsg}</p>
+        )}
+
+        {session?.user && (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 border-success/40 text-success hover:bg-success/10"
+              onClick={() => onVote('confirm')}
+              disabled={isVoting}
+            >
+              {t("resolution.confirm")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => onVote('dispute')}
+              disabled={isVoting}
+            >
+              {t("resolution.dispute")}
+            </Button>
+          </div>
+        )}
+
+        <p className="text-xs text-muted-foreground text-center">
+          {resolution.confirmCount} {t("resolution.confirmations")} · {resolution.disputeCount} {t("resolution.disputes")}
+        </p>
+      </div>
+    )
+  }
+
+  return null
+}
+
 // ── Main Page ───────────────────────────────────────────────
 export function MarketDetail({ marketId }: { marketId: string }) {
   const { t, locale } = useI18n()
   const { data: session } = useSession()
   const [market, setMarket] = useState<FrontendMarket | null>(null)
+  const [resolution, setResolution] = useState<ResolutionInfo | null>(null)
   const [relatedMarkets, setRelatedMarkets] = useState<FrontendMarket[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isVoting, setIsVoting] = useState(false)
+  const [voteMsg, setVoteMsg] = useState<string | null>(null)
+
+  const fetchMarket = async () => {
+    const marketData = await apiGet<FrontendMarket>(`/markets/${marketId}`)
+    setMarket(marketData)
+
+    // Fetch resolution details for non-open markets
+    if (['pending_resolution', 'disputed', 'resolved', 'ai_uncertain'].includes(marketData.status)) {
+      try {
+        const res = await apiGet<ResolutionInfo>(`/resolutions/${marketId}`)
+        setResolution(res)
+      } catch {
+        // No resolution yet, that's fine
+      }
+    }
+
+    return marketData
+  }
 
   // Fetch market and related markets on mount
   useEffect(() => {
@@ -387,11 +538,9 @@ export function MarketDetail({ marketId }: { marketId: string }) {
         setLoading(true)
         setError(null)
 
-        // Fetch the specific market
-        const marketData = await apiGet<FrontendMarket>(`/markets/${marketId}`)
-        setMarket(marketData)
+        const marketData = await fetchMarket()
 
-        // Fetch all markets to find related ones (same category)
+        // Fetch related markets (same category)
         const allMarkets = await apiGet<FrontendMarket[]>('/markets?status=open&limit=100')
         const related = allMarkets
           .filter((m) => m.id !== marketId && m.category === marketData.category)
@@ -406,7 +555,26 @@ export function MarketDetail({ marketId }: { marketId: string }) {
     }
 
     fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [marketId])
+
+  const handleVote = async (vote: 'confirm' | 'dispute') => {
+    if (!session?.accessToken) return
+    setIsVoting(true)
+    setVoteMsg(null)
+    try {
+      await apiPostAuth(`/resolutions/${marketId}/${vote}`, {}, session.accessToken)
+      setVoteMsg(t("resolution.voteRegistered"))
+      // Refresh resolution counts
+      const res = await apiGet<ResolutionInfo>(`/resolutions/${marketId}`)
+      setResolution(res)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("resolution.alreadyVoted")
+      setVoteMsg(msg)
+    } finally {
+      setIsVoting(false)
+    }
+  }
 
   // Show loading state
   if (loading) {
@@ -465,9 +633,19 @@ export function MarketDetail({ marketId }: { marketId: string }) {
                   {t("cat.trending")}
                 </span>
               )}
-              {market.resolution && (
+              {market.status === 'pending_resolution' && (
                 <span className="rounded-md bg-warning/10 px-2 py-0.5 text-xs font-bold text-warning">
-                  {market.resolution}
+                  {t("resolution.pendingTitle")}
+                </span>
+              )}
+              {market.status === 'disputed' && (
+                <span className="rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-bold text-destructive">
+                  {t("resolution.disputed")}
+                </span>
+              )}
+              {market.status === 'resolved' && market.resolution && (
+                <span className="rounded-md bg-success/10 px-2 py-0.5 text-xs font-bold text-success">
+                  {t("resolution.resolved")}: {market.resolution}
                 </span>
               )}
             </div>
@@ -622,13 +800,31 @@ export function MarketDetail({ marketId }: { marketId: string }) {
           )}
         </div>
 
-        {/* Sidebar - Trading Panel */}
+        {/* Sidebar */}
         <div className="lg:col-span-1">
-          <div className="sticky top-20 rounded-xl border border-border bg-card p-5">
-            {isMulti ? (
-              <MultiTradingPanel market={market} accessToken={session?.accessToken} />
-            ) : (
-              <BinaryTradingPanel market={market} accessToken={session?.accessToken} />
+          <div className="sticky top-20 space-y-4">
+            {/* Trading Panel — only when market is open */}
+            {market.status === 'open' && (
+              <div className="rounded-xl border border-border bg-card p-5">
+                {isMulti ? (
+                  <MultiTradingPanel market={market} accessToken={session?.accessToken} />
+                ) : (
+                  <BinaryTradingPanel market={market} accessToken={session?.accessToken} />
+                )}
+              </div>
+            )}
+
+            {/* Resolution Panel — for non-open states */}
+            {market.status !== 'open' && (
+              <div className="rounded-xl border border-border bg-card p-5">
+                <ResolutionPanel
+                  market={market}
+                  resolution={resolution}
+                  onVote={handleVote}
+                  voteMsg={voteMsg}
+                  isVoting={isVoting}
+                />
+              </div>
             )}
           </div>
         </div>

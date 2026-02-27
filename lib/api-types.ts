@@ -18,7 +18,9 @@ export interface FrontendMarket {
   options?: FrontendMarketOption[]
   closesAt: string
   resolvedAt: string | null
-  resolution: 'YES' | 'NO' | null
+  resolution: string | null  // 'YES', 'NO', or answer UUID for multi-choice
+  status: string             // 'open' | 'closed' | 'pending_resolution' | 'ai_uncertain' | 'disputed' | 'resolved'
+  creatorId: string | null
   createdAt: string
   trending: boolean
   iconUrl?: string
@@ -67,4 +69,35 @@ export interface UserActivity {
   amount: number // BRL
   direction?: 'YES' | 'NO'
   createdAt: string
+}
+
+export interface ResolutionInfo {
+  result: string | null
+  explanation?: string | null
+  resolvedBy?: string | null
+  totalYesPayout?: number
+  totalNoPayout?: number
+  aiGroqResult?: string | null
+  aiGeminiResult?: string | null
+  aiGroqConfidence?: number | null
+  aiGeminiConfidence?: number | null
+  aiGroqReasoning?: string | null
+  aiGeminiReasoning?: string | null
+  confirmCount: number
+  disputeCount: number
+  resolvesAt: string | null
+  createdAt: string
+}
+
+export interface ResolvedPosition {
+  marketId: string
+  payout: number // BRL
+  payoutAt: string
+  resolution: string | null
+  resolvedAt: string | null
+  direction: string | null
+  market: {
+    id: string
+    question: { pt: string; en: string; es: string }
+  }
 }

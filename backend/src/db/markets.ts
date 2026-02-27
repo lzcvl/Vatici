@@ -20,7 +20,7 @@ export async function listMarkets(filters?: {
 
     const markets = (await sql`
       SELECT
-        id, question, description, category, market_type,
+        id, creator_id, question, description, category, market_type,
         pool_yes, pool_no, p, status, closes_at, resolved_at,
         resolution_result, total_volume, is_trending, icon_url, created_at
       FROM markets
@@ -61,7 +61,7 @@ export async function getMarketById(
   try {
     const markets = (await sql`
       SELECT
-        id, question, description, category, market_type,
+        id, creator_id, question, description, category, market_type,
         pool_yes, pool_no, p, status, closes_at, resolved_at,
         resolution_result, total_volume, is_trending, icon_url, created_at
       FROM markets

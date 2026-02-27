@@ -200,4 +200,62 @@ app.get('/activity', async (c) => {
   }
 })
 
+/**
+ * GET /me/resolved-positions
+ * Returns markets where the user received a resolution payout.
+ */
+app.get('/resolved-positions', async (c) => {
+  try {
+    const userId = await verifyAuth(c)
+    const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100)
+
+    const rows = (await sql`
+      SELECT
+        t.amount AS payout,
+        t.created_at AS payout_at,
+        m.id AS market_id,
+        m.question,
+        m.resolution_result,
+        m.resolved_at,
+        COALESCE(up.outcome, '') AS outcome
+      FROM transactions t
+      JOIN markets m ON t.market_id = m.id
+      LEFT JOIN user_positions up
+        ON up.user_id = t.user_id
+        AND up.market_id = m.id
+        AND up.answer_id IS NULL
+      WHERE t.user_id = ${userId}
+        AND t.type = 'resolution'
+      ORDER BY t.created_at DESC
+      LIMIT ${limit}
+    `) as Array<{
+      payout: number
+      payout_at: string
+      market_id: string
+      question: string
+      resolution_result: string | null
+      resolved_at: string | null
+      outcome: string
+    }>
+
+    return c.json(
+      rows.map((r) => ({
+        marketId: r.market_id,
+        payout: r.payout / 100, // cents → BRL
+        payoutAt: r.payout_at,
+        resolution: r.resolution_result,
+        resolvedAt: r.resolved_at,
+        direction: r.outcome || null,
+        market: {
+          id: r.market_id,
+          question: { pt: r.question, en: r.question, es: r.question },
+        },
+      }))
+    )
+  } catch (err) {
+    console.error('GET /me/resolved-positions error:', err)
+    return c.json({ error: 'Failed to fetch resolved positions' } as ErrorResponse, 500)
+  }
+})
+
 export default app

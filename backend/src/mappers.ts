@@ -22,7 +22,9 @@ export interface FrontendMarket {
   options?: FrontendMarketOption[]
   closesAt: string
   resolvedAt: string | null
-  resolution: 'YES' | 'NO' | null
+  resolution: string | null  // 'YES', 'NO', or answer UUID for multi-choice
+  status: string             // 'open' | 'closed' | 'pending_resolution' | 'ai_uncertain' | 'disputed' | 'resolved'
+  creatorId: string | null
   createdAt: string
   trending: boolean
   iconUrl?: string
@@ -54,6 +56,7 @@ export interface FrontendBet {
  */
 export interface DbMarket {
   id: string
+  creator_id: string | null
   question: string
   description: string | null
   category: string | null
@@ -144,7 +147,9 @@ export function mapMarket(
     options,
     closesAt: market.closes_at,
     resolvedAt: market.resolved_at,
-    resolution: (market.resolution_result as 'YES' | 'NO' | null) || null,
+    resolution: market.resolution_result || null,
+    status: market.status,
+    creatorId: market.creator_id || null,
     createdAt: market.created_at,
     trending: market.is_trending,
     iconUrl: market.icon_url || undefined,
