@@ -1,14 +1,16 @@
 /**
  * User Profile Routes
- * GET /me/balance - User's current balance
+ * GET /me/balance   - User's current balance
  * GET /me/positions - User's market positions
- * GET /me/activity - User's recent activity
+ * GET /me/activity  - User's recent activity
+ * GET /me/profile   - User's profile info (name, email, createdAt)
  */
 
 import { Hono } from 'hono'
 import { sql } from '../db/client'
 import { mapBalance } from '../mappers'
 import type { ErrorResponse } from '../mappers'
+import { verifyAuth } from '../middleware/auth'
 
 const app = new Hono()
 
@@ -18,8 +20,7 @@ const app = new Hono()
  */
 app.get('/balance', async (c) => {
   try {
-    // TODO: Get userId from auth token
-    const userId = 'todo-auth'
+    const userId = await verifyAuth(c)
 
     const rows = (await sql`
       SELECT balance FROM user_balances
@@ -36,13 +37,43 @@ app.get('/balance', async (c) => {
 })
 
 /**
+ * GET /me/profile
+ * Get user's profile information
+ */
+app.get('/profile', async (c) => {
+  try {
+    const userId = await verifyAuth(c)
+
+    const rows = (await sql`
+      SELECT id, name, email, created_at
+      FROM users
+      WHERE id = ${userId}
+      LIMIT 1
+    `) as { id: string; name: string; email: string; created_at: string }[]
+
+    if (!rows[0]) {
+      return c.json({ error: 'User not found' } as ErrorResponse, 404)
+    }
+
+    return c.json({
+      id: rows[0].id,
+      name: rows[0].name,
+      email: rows[0].email,
+      createdAt: rows[0].created_at,
+    })
+  } catch (err) {
+    console.error('GET /me/profile error:', err)
+    return c.json({ error: 'Failed to fetch profile' } as ErrorResponse, 500)
+  }
+})
+
+/**
  * GET /me/positions
  * Get user's current positions (betting positions across markets)
  */
 app.get('/positions', async (c) => {
   try {
-    // TODO: Get userId from auth token
-    const userId = 'todo-auth'
+    const userId = await verifyAuth(c)
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100)
 
     // Get positions with market data
@@ -113,15 +144,14 @@ app.get('/positions', async (c) => {
 
 /**
  * GET /me/activity
- * Get user's recent activity (bets placed, markets resolved, etc.)
+ * Get user's recent activity (bets placed)
  */
 app.get('/activity', async (c) => {
   try {
-    // TODO: Get userId from auth token
-    const userId = 'todo-auth'
+    const userId = await verifyAuth(c)
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100)
 
-    // Get recent transactions/bets
+    // Get recent bets with market info
     const activity = (await sql`
       SELECT
         b.id,

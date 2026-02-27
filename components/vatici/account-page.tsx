@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n"
-import { currentUser, formatBRL, formatDate } from "@/lib/mock-data"
+import { formatBRL, formatDate } from "@/lib/mock-data"
+import { apiGetAuth } from "@/lib/api"
 import { User, Shield, Bell, Trash2, Check, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -16,11 +17,24 @@ export function AccountPage() {
   const router = useRouter()
 
   const [activeTab, setActiveTab] = useState<Tab>("profile")
+  const [createdAt, setCreatedAt] = useState<string | null>(null)
+  const [balance, setBalance] = useState<number | null>(null)
 
   // Profile form
-  const [name, setName] = useState(session?.user?.name || currentUser.name)
-  const [email] = useState(session?.user?.email || currentUser.email)
+  const [name, setName] = useState(session?.user?.name || "")
+  const [email] = useState(session?.user?.email || "")
   const [profileSaved, setProfileSaved] = useState(false)
+
+  useEffect(() => {
+    if (session?.accessToken) {
+      apiGetAuth<{ createdAt: string }>('/me/profile', session.accessToken)
+        .then((data) => setCreatedAt(data.createdAt))
+        .catch(() => setCreatedAt(null))
+      apiGetAuth<{ balance: number }>('/me/balance', session.accessToken)
+        .then((data) => setBalance(data.balance))
+        .catch(() => setBalance(null))
+    }
+  }, [session?.accessToken])
 
   // Security form
   const [currentPassword, setCurrentPassword] = useState("")
@@ -78,7 +92,7 @@ export function AccountPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">{t("account.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t("account.memberSince")} {formatDate(currentUser.createdAt, locale)}
+          {createdAt ? `${t("account.memberSince")} ${formatDate(createdAt, locale)}` : "\u00a0"}
         </p>
       </div>
 
@@ -152,7 +166,9 @@ export function AccountPage() {
             <div className="rounded-lg border border-border bg-secondary/30 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">{t("portfolio.balance")}</span>
-                <span className="font-mono text-lg font-semibold text-success">{formatBRL(currentUser.balance)}</span>
+                <span className="font-mono text-lg font-semibold text-success">
+                  {balance !== null ? formatBRL(balance) : '...'}
+                </span>
               </div>
             </div>
           </div>

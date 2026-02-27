@@ -1,8 +1,20 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { compareSync } from "bcryptjs"
+import { SignJWT } from "jose"
 import { findUserByEmail } from "./db/users"
 import { loginSchema } from "./zod-schemas"
+
+const AUTH_SECRET = process.env.AUTH_SECRET ?? "vatici-dev-secret-change-in-production"
+
+/** Creates a short-lived HS256 JWT for authenticating requests to the backend API */
+async function createBackendToken(userId: string): Promise<string> {
+  return new SignJWT({ sub: userId })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(new TextEncoder().encode(AUTH_SECRET))
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -36,6 +48,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
+        // Create a backend API token signed with AUTH_SECRET (verified by Railway backend)
+        token.backendToken = await createBackendToken(user.id as string)
       }
       return token
     },
@@ -43,11 +57,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user && token.id) {
         session.user.id = token.id as string
       }
+      // Expose backend token to the client for API calls
+      session.accessToken = token.backendToken as string | undefined
       return session
     },
   },
   session: {
     strategy: "jwt",
   },
-  secret: process.env.AUTH_SECRET ?? "vatici-dev-secret-change-in-production",
+  secret: AUTH_SECRET,
 })

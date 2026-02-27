@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Plus, Trash2, ChevronDown } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
-import { apiPost } from "@/lib/api"
+import { apiPostAuth } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 
 const CATEGORIES = [
@@ -74,7 +74,7 @@ export function CreateMarketPage() {
         ...(marketType === "multi" && { answers: answers.map((a) => a.trim()) }),
       }
 
-      const result = await apiPost<{ id: string }>("/markets", body)
+      const result = await apiPostAuth<{ id: string }>("/markets", body, session!.accessToken!)
       router.push(`/mercado/${result.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar mercado.")

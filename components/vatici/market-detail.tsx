@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft, TrendingUp, Clock, Share2, Bookmark } from "lucide-react"
+import { useSession } from "next-auth/react"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatPercent, formatDateShort, getNoPrice } from "@/lib/mock-data"
-import { apiGet, apiPost } from "@/lib/api"
+import { apiGet, apiPostAuth } from "@/lib/api"
 import type { FrontendMarket } from "@/lib/api-types"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,7 +15,7 @@ import { MarketCard } from "./market-card"
 import { ProbabilityChart } from "./probability-chart"
 
 // ── Binary trading sidebar ──────────────────────────────────
-function BinaryTradingPanel({ market }: { market: FrontendMarket }) {
+function BinaryTradingPanel({ market, accessToken }: { market: FrontendMarket; accessToken?: string }) {
   const { t } = useI18n()
   const [side, setSide] = useState<"YES" | "NO">("YES")
   const [amount, setAmount] = useState("")
@@ -40,11 +41,16 @@ function BinaryTradingPanel({ market }: { market: FrontendMarket }) {
       // Convert BRL to cents (API expects cents)
       const amountInCents = Math.round(numericAmount * 100)
 
-      const betResponse = await apiPost<{ id: string }>('/bets', {
+      if (!accessToken) {
+        setSubmitError('Você precisa estar logado para apostar.')
+        return
+      }
+
+      const betResponse = await apiPostAuth<{ id: string }>('/bets', {
         marketId: market.id,
         direction: side,
         amount: amountInCents,
-      })
+      }, accessToken)
 
       if (betResponse.id) {
         setSubmitSuccess(true)
@@ -320,6 +326,7 @@ function AmountInput({
 // ── Main Page ───────────────────────────────────────────────
 export function MarketDetail({ marketId }: { marketId: string }) {
   const { t, locale } = useI18n()
+  const { data: session } = useSession()
   const [market, setMarket] = useState<FrontendMarket | null>(null)
   const [relatedMarkets, setRelatedMarkets] = useState<FrontendMarket[]>([])
   const [loading, setLoading] = useState(true)
@@ -573,7 +580,7 @@ export function MarketDetail({ marketId }: { marketId: string }) {
             {isMulti ? (
               <MultiTradingPanel market={market} />
             ) : (
-              <BinaryTradingPanel market={market} />
+              <BinaryTradingPanel market={market} accessToken={session?.accessToken} />
             )}
           </div>
         </div>

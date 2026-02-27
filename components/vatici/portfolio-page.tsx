@@ -2,9 +2,10 @@
 
 import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatPercent, getNoPrice } from "@/lib/mock-data"
-import { apiGet } from "@/lib/api"
+import { apiGetAuth } from "@/lib/api"
 import type { FrontendMarket } from "@/lib/api-types"
 import { Button } from "@/components/ui/button"
 import {
@@ -58,21 +59,25 @@ interface UserPosition {
 
 export function PortfolioPage() {
   const { t, locale } = useI18n()
+  const { data: session } = useSession()
   const [tab, setTab] = useState<TabKey>("positions")
   const [sortKey, setSortKey] = useState<SortKey>("value")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [expandedBet, setExpandedBet] = useState<string | null>(null)
   const [positions, setPositions] = useState<UserPosition[]>([])
+  const [balance, setBalance] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch positions on mount
+  // Fetch positions and balance on mount
   useEffect(() => {
+    if (!session?.accessToken) return
+
     const fetchPositions = async () => {
       try {
         setLoading(true)
         setError(null)
-        const data = await apiGet<UserPosition[]>('/me/positions')
+        const data = await apiGetAuth<UserPosition[]>('/me/positions', session.accessToken!)
         setPositions(data || [])
       } catch (err) {
         console.error('Failed to fetch positions:', err)
@@ -83,7 +88,11 @@ export function PortfolioPage() {
     }
 
     fetchPositions()
-  }, [])
+
+    apiGetAuth<{ balance: number }>('/me/balance', session.accessToken!)
+      .then((data) => setBalance(data.balance))
+      .catch(() => setBalance(null))
+  }, [session?.accessToken])
 
   // Transform positions to enriched bets format
   const enrichedBets = useMemo(() => {
@@ -237,7 +246,9 @@ export function PortfolioPage() {
               <Wallet className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground">{t("portfolio.balance")}</span>
             </div>
-            <div className="text-2xl font-bold text-foreground">{formatBRL(currentUser.balance)}</div>
+            <div className="text-2xl font-bold text-foreground">
+              {balance !== null ? formatBRL(balance) : '...'}
+            </div>
             <div className="mt-4 flex gap-2">
               <Button size="sm" className="flex-1 bg-primary text-primary-foreground text-xs hover:bg-primary/90">
                 {t("portfolio.deposit")}

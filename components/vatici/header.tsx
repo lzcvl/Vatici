@@ -4,9 +4,10 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { Search, Menu, X, LogOut, User, Settings, Plus } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useI18n } from "@/lib/i18n"
-import { currentUser, formatBRL } from "@/lib/mock-data"
+import { formatBRL } from "@/lib/mock-data"
+import { apiGetAuth } from "@/lib/api"
 import { VaticiLogo } from "./vatici-logo"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +24,15 @@ export function Header() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [balance, setBalance] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (session?.accessToken) {
+      apiGetAuth<{ balance: number }>('/me/balance', session.accessToken)
+        .then((data) => setBalance(data.balance))
+        .catch(() => setBalance(null))
+    }
+  }, [session?.accessToken])
 
   const navItems = [
     { href: "/", label: t("nav.markets") },
@@ -108,9 +118,11 @@ export function Header() {
                   size="sm"
                   className="gap-2 text-foreground"
                 >
-                  <span className="hidden rounded-md bg-success/10 px-2 py-0.5 font-mono text-xs font-semibold text-success sm:inline">
-                    {formatBRL(currentUser.balance)}
-                  </span>
+                  {balance !== null && (
+                    <span className="hidden rounded-md bg-success/10 px-2 py-0.5 font-mono text-xs font-semibold text-success sm:inline">
+                      {formatBRL(balance)}
+                    </span>
+                  )}
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
                     {session.user.name?.[0]?.toUpperCase() || "U"}
                   </div>
@@ -211,7 +223,9 @@ export function Header() {
                 </Link>
                 <div className="flex items-center justify-between rounded-lg bg-success/10 px-4 py-3">
                   <span className="text-sm text-muted-foreground">{t("portfolio.balance")}</span>
-                  <span className="font-mono text-sm font-semibold text-success">{formatBRL(currentUser.balance)}</span>
+                  <span className="font-mono text-sm font-semibold text-success">
+                    {balance !== null ? formatBRL(balance) : '...'}
+                  </span>
                 </div>
                 <button
                   onClick={() => {

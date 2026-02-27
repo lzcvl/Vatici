@@ -6,8 +6,9 @@
 
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { placeBet, getMarketBets } from '../db/bets'
+import { placeBet, getMarketBets, BetError } from '../db/bets'
 import type { ErrorResponse } from '../mappers'
+import { verifyAuth } from '../middleware/auth'
 
 const app = new Hono()
 
@@ -25,8 +26,7 @@ const app = new Hono()
  */
 app.post('/', async (c) => {
   try {
-    // TODO: Verify auth token from header
-    // const userId = await verifyAuth(c)
+    const userId = await verifyAuth(c)
 
     const body = await c.req.json<{
       marketId?: string
@@ -51,9 +51,6 @@ app.post('/', async (c) => {
       return c.json({ error: 'Amount must be greater than 0' } as ErrorResponse, 400)
     }
 
-    // TODO: Get userId from auth token
-    const userId = 'todo-auth'
-
     // Place bet (atomic transaction)
     const betId = await placeBet({
       userId,
@@ -67,19 +64,8 @@ app.post('/', async (c) => {
   } catch (err) {
     console.error('POST /bets error:', err)
 
-    // Check for specific error codes
-    const error = err as any
-    if (error.code === 'INSUFFICIENT_BALANCE') {
-      return c.json(
-        { error: 'Insufficient balance to place this bet' } as ErrorResponse,
-        422
-      )
-    }
-    if (error.code === 'MARKET_NOT_FOUND_OR_CLOSED') {
-      return c.json(
-        { error: 'Market not found or closed for betting' } as ErrorResponse,
-        422
-      )
+    if (err instanceof BetError) {
+      return c.json({ error: err.message } as ErrorResponse, err.statusCode as 422)
     }
 
     return c.json({ error: 'Failed to place bet' } as ErrorResponse, 500)

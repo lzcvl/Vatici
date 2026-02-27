@@ -13,6 +13,21 @@ import type { DbBet } from '../mappers'
 import { calculateCpmmPurchase, type CpmmPool } from '../lib/cpmm'
 
 /**
+ * Typed error for bet placement failures
+ */
+export class BetError extends Error {
+  code: 'INSUFFICIENT_BALANCE' | 'MARKET_NOT_FOUND_OR_CLOSED'
+  statusCode: number
+
+  constructor(code: 'INSUFFICIENT_BALANCE' | 'MARKET_NOT_FOUND_OR_CLOSED', statusCode: number) {
+    super(code)
+    this.name = 'BetError'
+    this.code = code
+    this.statusCode = statusCode
+  }
+}
+
+/**
  * Place a bet
  *
  * @param betData - Bet details
@@ -35,10 +50,7 @@ export async function placeBet(betData: {
 
     const userBalance = balanceRows[0]?.balance ?? 0
     if (userBalance < betData.amount) {
-      const err = new Error('Insufficient balance')
-      ;(err as any).code = 'INSUFFICIENT_BALANCE'
-      ;(err as any).statusCode = 422
-      throw err
+      throw new BetError('INSUFFICIENT_BALANCE', 422)
     }
 
     // 2. Get market/answer info
@@ -52,10 +64,7 @@ export async function placeBet(betData: {
       `) as { pool_yes: number; pool_no: number }[]
 
       if (!answerRows[0]) {
-        const err = new Error('Answer not found or market closed')
-        ;(err as any).code = 'MARKET_NOT_FOUND_OR_CLOSED'
-        ;(err as any).statusCode = 422
-        throw err
+        throw new BetError('MARKET_NOT_FOUND_OR_CLOSED', 422)
       }
 
       poolYes = answerRows[0].pool_yes
@@ -68,10 +77,7 @@ export async function placeBet(betData: {
 
       const market = marketRows[0]
       if (!market || market.status !== 'open') {
-        const err = new Error('Market not found or closed')
-        ;(err as any).code = 'MARKET_NOT_FOUND_OR_CLOSED'
-        ;(err as any).statusCode = 422
-        throw err
+        throw new BetError('MARKET_NOT_FOUND_OR_CLOSED', 422)
       }
 
       poolYes = market.pool_yes

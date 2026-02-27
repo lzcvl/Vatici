@@ -6,6 +6,7 @@
 import { Hono } from 'hono'
 import { listMarkets, getMarketById, createMarket } from '../db/markets'
 import { mapMarket, type ErrorResponse } from '../mappers'
+import { verifyAuth } from '../middleware/auth'
 
 const app = new Hono()
 
@@ -68,8 +69,7 @@ app.get('/:id', async (c) => {
  */
 app.post('/', async (c) => {
   try {
-    // TODO: Verify auth token from header
-    // const userId = await verifyAuth(c)
+    const userId = await verifyAuth(c)
 
     const body = await c.req.json<{
       question?: string
@@ -95,9 +95,6 @@ app.post('/', async (c) => {
     if (body.marketType === 'multi' && (!body.answers || body.answers.length < 2)) {
       return c.json({ error: 'Multi-choice markets require at least 2 answers' } as ErrorResponse, 400)
     }
-
-    // TODO: Get userId from auth token
-    const userId = 'todo-auth'
 
     const marketId = await createMarket({
       creatorId: userId,

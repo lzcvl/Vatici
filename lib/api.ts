@@ -2,8 +2,9 @@
  * API Client Wrapper
  *
  * Calls backend API at NEXT_PUBLIC_API_URL
- * For public routes (GET /markets, etc.)
- * For authenticated routes, use server actions in components
+ *
+ * Public routes:  apiGet / apiPost (no token required)
+ * Private routes: apiGetAuth / apiPostAuth (require session.accessToken)
  */
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
@@ -52,16 +53,30 @@ async function makeRequest<T>(
 }
 
 /**
- * GET request (no auth)
+ * GET request (no auth) — for public routes like GET /markets
  */
 export async function apiGet<T>(path: string): Promise<T> {
   return makeRequest<T>('GET', path)
 }
 
 /**
- * POST request with optional auth
+ * GET request with required auth — for private routes like /me/balance
  */
-export async function apiPost<T>(path: string, body: unknown, token?: string): Promise<T> {
+export async function apiGetAuth<T>(path: string, token: string): Promise<T> {
+  return makeRequest<T>('GET', path, undefined, token)
+}
+
+/**
+ * POST request (no auth)
+ */
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  return makeRequest<T>('POST', path, body)
+}
+
+/**
+ * POST request with required auth — for routes like POST /markets, POST /bets
+ */
+export async function apiPostAuth<T>(path: string, body: unknown, token: string): Promise<T> {
   return makeRequest<T>('POST', path, body, token)
 }
 

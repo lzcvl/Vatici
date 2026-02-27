@@ -1,38 +1,28 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
 import { useI18n } from "@/lib/i18n"
 import { formatBRL, formatDate, formatTime } from "@/lib/mock-data"
-import { apiGet } from "@/lib/api"
-import { OrigamiCrane, OrigamiArrowUp, OrigamiArrowDown } from "./origami-icons"
-
-interface Activity {
-  id: string
-  type: 'bet'
-  marketId: string
-  direction?: 'YES' | 'NO'
-  amount: number
-  shares?: number
-  createdAt: string
-  market?: {
-    id: string
-    question: { pt: string; en: string; es: string }
-    type: string
-  }
-}
+import { apiGetAuth } from "@/lib/api"
+import type { UserActivity } from "@/lib/api-types"
+import { OrigamiCrane, OrigamiArrowUp } from "./origami-icons"
 
 export function ActivityPage() {
   const { t, locale } = useI18n()
-  const [activities, setActivities] = useState<Activity[]>([])
+  const { data: session } = useSession()
+  const [activities, setActivities] = useState<UserActivity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session?.accessToken) return
+
     const fetchActivity = async () => {
       try {
         setLoading(true)
         setError(null)
-        const data = await apiGet<Activity[]>('/me/activity')
+        const data = await apiGetAuth<UserActivity[]>('/me/activity', session.accessToken!)
         setActivities(data || [])
       } catch (err) {
         console.error('Failed to fetch activity:', err)
@@ -43,7 +33,7 @@ export function ActivityPage() {
     }
 
     fetchActivity()
-  }, [])
+  }, [session?.accessToken])
 
   // Show loading state
   if (loading) {
@@ -103,9 +93,11 @@ export function ActivityPage() {
                   >
                     {activity.direction === "YES" ? t("market.yes") : t("market.no")}
                   </span>
-                  <span>
-                    {activity.shares.toFixed(1)} {t("detail.shares")}
-                  </span>
+                  {activity.shares != null && (
+                    <span>
+                      {activity.shares.toFixed(1)} {t("detail.shares")}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="text-right">
