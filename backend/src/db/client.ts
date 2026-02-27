@@ -1,12 +1,15 @@
 /**
  * Neon PostgreSQL Client
  *
- * Single instance for all database queries.
- * Uses unpooled connection for transactions (pgBouncer doesn't support
- * multi-statement transactions in transaction mode).
+ * - sql (neon HTTP driver): fast, serverless-compatible, for simple queries
+ * - pool (pg native): TCP connection pool, supports real transactions with
+ *   BEGIN/COMMIT/ROLLBACK — required for atomic multi-step operations.
+ *   Uses unpooled connection URL to bypass PgBouncer (which doesn't support
+ *   multi-statement transactions in transaction mode).
  */
 
-import { neon, Pool, type NeonQueryFunction } from '@neondatabase/serverless'
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless'
+import { Pool } from 'pg'
 
 if (!process.env.DATABASE_URL_UNPOOLED && !process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL_UNPOOLED or DATABASE_URL must be set in .env')
@@ -15,12 +18,12 @@ if (!process.env.DATABASE_URL_UNPOOLED && !process.env.DATABASE_URL) {
 const connectionUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL!
 
 /**
- * Main SQL client for simple (non-transactional) queries.
+ * HTTP-based SQL client for simple (non-transactional) queries.
  */
 export const sql: NeonQueryFunction<false, false> = neon(connectionUrl)
 
 /**
- * Connection pool for transactional operations.
+ * TCP connection pool (pg native) for transactional operations.
  * Use pool.connect() + BEGIN/COMMIT/ROLLBACK for atomic multi-step operations.
  */
 export const pool = new Pool({ connectionString: connectionUrl })
