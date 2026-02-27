@@ -43,11 +43,11 @@ export function HomePage() {
     if (category === "all") return markets
     if (category === "trending") return markets.filter((m) => m.trending)
     return markets.filter((m) => m.category === category)
-  }, [category])
+  }, [category, markets])
 
   const trendingMarkets = useMemo(
     () => markets.filter((m) => m.trending).slice(0, 3),
-    []
+    [markets]
   )
 
   const topVolumeMarkets = useMemo(
