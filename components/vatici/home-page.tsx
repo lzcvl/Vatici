@@ -52,7 +52,7 @@ export function HomePage() {
 
   const topVolumeMarkets = useMemo(
     () => [...markets].sort((a, b) => b.volume - a.volume).slice(0, 6),
-    []
+    [markets]
   )
 
   // Show loading state

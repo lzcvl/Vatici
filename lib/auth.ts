@@ -5,7 +5,8 @@ import { SignJWT } from "jose"
 import { findUserByEmail } from "./db/users"
 import { loginSchema } from "./zod-schemas"
 
-const AUTH_SECRET = process.env.AUTH_SECRET ?? "vatici-dev-secret-change-in-production"
+const AUTH_SECRET = process.env.AUTH_SECRET
+if (!AUTH_SECRET) throw new Error('AUTH_SECRET environment variable is not set')
 
 /** Creates a short-lived HS256 JWT for authenticating requests to the backend API */
 async function createBackendToken(userId: string): Promise<string> {

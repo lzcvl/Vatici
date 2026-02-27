@@ -7,22 +7,25 @@
  */
 
 import { jwtVerify } from 'jose'
+import { HTTPException } from 'hono/http-exception'
 import type { Context } from 'hono'
 
-const getSecret = () =>
-  new TextEncoder().encode(
-    process.env.AUTH_SECRET ?? 'vatici-dev-secret-change-in-production'
-  )
+if (!process.env.AUTH_SECRET) {
+  throw new Error('AUTH_SECRET environment variable is not set')
+}
+
+const getSecret = () => new TextEncoder().encode(process.env.AUTH_SECRET)
 
 /**
- * Verify the Bearer token and return the userId (payload.sub)
- * @throws 401 HTTPException if token is missing or invalid
+ * Verify the Bearer token and return the userId (payload.sub).
+ * Throws HTTPException(401) if the token is missing, invalid, or expired —
+ * which causes Hono to immediately return a 401 response and stop route execution.
  */
 export async function verifyAuth(c: Context): Promise<string> {
   const authHeader = c.req.header('Authorization')
 
   if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ error: 'Unauthorized' }, 401) as never
+    throw new HTTPException(401, { message: 'Unauthorized' })
   }
 
   const token = authHeader.slice(7)
@@ -32,11 +35,12 @@ export async function verifyAuth(c: Context): Promise<string> {
     const userId = payload.sub
 
     if (!userId) {
-      return c.json({ error: 'Invalid token: missing sub' }, 401) as never
+      throw new HTTPException(401, { message: 'Invalid token: missing sub' })
     }
 
     return userId
-  } catch {
-    return c.json({ error: 'Invalid or expired token' }, 401) as never
+  } catch (err) {
+    if (err instanceof HTTPException) throw err
+    throw new HTTPException(401, { message: 'Invalid or expired token' })
   }
 }

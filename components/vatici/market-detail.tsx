@@ -168,18 +168,53 @@ function BinaryTradingPanel({ market, accessToken }: { market: FrontendMarket; a
 }
 
 // ── Multi-option trading sidebar ────────────────────────────
-function MultiTradingPanel({ market }: { market: FrontendMarket }) {
+function MultiTradingPanel({ market, accessToken }: { market: FrontendMarket; accessToken?: string }) {
   const { t, locale } = useI18n()
   const options = market.options ?? []
   const sorted = [...options].sort((a, b) => b.probability - a.probability)
   const [selectedOption, setSelectedOption] = useState(sorted[0])
   const [amount, setAmount] = useState("")
   const [action, setAction] = useState<"buy" | "sell">("buy")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
 
   const price = selectedOption.probability
   const numericAmount = parseFloat(amount) || 0
   const shares = numericAmount > 0 ? numericAmount / price : 0
   const potentialReturn = shares - numericAmount
+
+  const handlePlaceBet = async () => {
+    try {
+      setIsSubmitting(true)
+      setSubmitError(null)
+      setSubmitSuccess(false)
+
+      if (!accessToken) {
+        setSubmitError('Você precisa estar logado para apostar.')
+        return
+      }
+
+      const amountInCents = Math.round(numericAmount * 100)
+      const betResponse = await apiPostAuth<{ id: string }>('/bets', {
+        marketId: market.id,
+        answerId: selectedOption.id,
+        direction: 'YES',
+        amount: amountInCents,
+      }, accessToken)
+
+      if (betResponse.id) {
+        setSubmitSuccess(true)
+        setAmount("")
+        setTimeout(() => setSubmitSuccess(false), 3000)
+      }
+    } catch (err) {
+      console.error('Failed to place bet:', err)
+      setSubmitError(err instanceof Error ? err.message : 'Erro ao fazer aposta. Tente novamente.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <>
@@ -268,15 +303,28 @@ function MultiTradingPanel({ market }: { market: FrontendMarket }) {
         </div>
       </div>
 
+      {submitError && (
+        <div className="mb-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {submitError}
+        </div>
+      )}
+
+      {submitSuccess && (
+        <div className="mb-3 rounded-lg bg-success/10 p-3 text-sm text-success">
+          ✓ Aposta realizada com sucesso!
+        </div>
+      )}
+
       <Button
+        onClick={handlePlaceBet}
         className={`w-full font-semibold ${
           action === "buy"
             ? "bg-primary text-primary-foreground hover:bg-primary/90"
             : "bg-destructive text-primary-foreground hover:bg-destructive/90"
         }`}
-        disabled={numericAmount <= 0}
+        disabled={numericAmount <= 0 || isSubmitting}
       >
-        {t("detail.placeBet")}
+        {isSubmitting ? "Fazendo aposta..." : t("detail.placeBet")}
       </Button>
     </>
   )
@@ -578,7 +626,7 @@ export function MarketDetail({ marketId }: { marketId: string }) {
         <div className="lg:col-span-1">
           <div className="sticky top-20 rounded-xl border border-border bg-card p-5">
             {isMulti ? (
-              <MultiTradingPanel market={market} />
+              <MultiTradingPanel market={market} accessToken={session?.accessToken} />
             ) : (
               <BinaryTradingPanel market={market} accessToken={session?.accessToken} />
             )}

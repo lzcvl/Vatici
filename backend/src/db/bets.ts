@@ -1,16 +1,14 @@
 /**
  * Betting Database Queries
  *
- * Bet placement logic:
- * 1. Verify user balance
- * 2. Verify market/answer exists
- * 3. Calculate CPMM result
- * 4-8. Execute updates (database constraints ensure atomicity)
+ * placeBet runs all steps inside a single PostgreSQL transaction with
+ * SELECT ... FOR UPDATE locks to prevent race conditions on concurrent bets.
  */
 
-import { sql } from './client'
+import { pool } from './client'
 import type { DbBet } from '../mappers'
-import { calculateCpmmPurchase, type CpmmPool } from '../lib/cpmm'
+import { sql } from './client'
+import { calculateCpmmPurchase } from '../lib/cpmm'
 
 /**
  * Typed error for bet placement failures
@@ -19,8 +17,12 @@ export class BetError extends Error {
   code: 'INSUFFICIENT_BALANCE' | 'MARKET_NOT_FOUND_OR_CLOSED'
   statusCode: number
 
-  constructor(code: 'INSUFFICIENT_BALANCE' | 'MARKET_NOT_FOUND_OR_CLOSED', statusCode: number) {
-    super(code)
+  constructor(
+    code: 'INSUFFICIENT_BALANCE' | 'MARKET_NOT_FOUND_OR_CLOSED',
+    statusCode: number,
+    message: string
+  ) {
+    super(message)
     this.name = 'BetError'
     this.code = code
     this.statusCode = statusCode
@@ -28,11 +30,11 @@ export class BetError extends Error {
 }
 
 /**
- * Place a bet
+ * Place a bet atomically.
+ * All reads and writes happen inside a single transaction with row-level locks.
  *
- * @param betData - Bet details
  * @returns Bet ID if successful
- * @throws Error with code like INSUFFICIENT_BALANCE, MARKET_NOT_FOUND_OR_CLOSED
+ * @throws BetError for domain errors (insufficient balance, closed market)
  */
 export async function placeBet(betData: {
   userId: string
@@ -41,134 +43,137 @@ export async function placeBet(betData: {
   direction: 'YES' | 'NO'
   amount: number // in cents
 }): Promise<string> {
-  try {
-    // 1. Verify user balance
-    const balanceRows = (await sql`
-      SELECT balance FROM user_balances
-      WHERE user_id = ${betData.userId}
-    `) as { balance: number }[]
+  const client = await pool.connect()
 
-    const userBalance = balanceRows[0]?.balance ?? 0
+  try {
+    await client.query('BEGIN')
+
+    // 1. Lock and verify user balance (FOR UPDATE prevents concurrent debits)
+    const balanceResult = await client.query<{ balance: number }>(
+      'SELECT balance FROM user_balances WHERE user_id = $1 FOR UPDATE',
+      [betData.userId]
+    )
+    const userBalance = balanceResult.rows[0]?.balance ?? 0
     if (userBalance < betData.amount) {
-      throw new BetError('INSUFFICIENT_BALANCE', 422)
+      throw new BetError('INSUFFICIENT_BALANCE', 422, 'Saldo insuficiente para realizar esta aposta.')
     }
 
-    // 2. Get market/answer info
+    // 2. Lock and read pool (FOR UPDATE prevents concurrent pool updates)
     let poolYes: number
     let poolNo: number
 
     if (betData.answerId) {
-      const answerRows = (await sql`
-        SELECT pool_yes, pool_no FROM answers
-        WHERE id = ${betData.answerId} AND market_id = ${betData.marketId}
-      `) as { pool_yes: number; pool_no: number }[]
-
-      if (!answerRows[0]) {
-        throw new BetError('MARKET_NOT_FOUND_OR_CLOSED', 422)
+      const answerResult = await client.query<{ pool_yes: number; pool_no: number }>(
+        'SELECT pool_yes, pool_no FROM answers WHERE id = $1 AND market_id = $2 FOR UPDATE',
+        [betData.answerId, betData.marketId]
+      )
+      if (!answerResult.rows[0]) {
+        throw new BetError('MARKET_NOT_FOUND_OR_CLOSED', 422, 'Opção ou mercado não encontrado.')
       }
-
-      poolYes = answerRows[0].pool_yes
-      poolNo = answerRows[0].pool_no
+      poolYes = answerResult.rows[0].pool_yes
+      poolNo = answerResult.rows[0].pool_no
     } else {
-      const marketRows = (await sql`
-        SELECT pool_yes, pool_no, status FROM markets
-        WHERE id = ${betData.marketId}
-      `) as { pool_yes: number; pool_no: number; status: string }[]
-
-      const market = marketRows[0]
+      const marketResult = await client.query<{ pool_yes: number; pool_no: number; status: string }>(
+        "SELECT pool_yes, pool_no, status FROM markets WHERE id = $1 FOR UPDATE",
+        [betData.marketId]
+      )
+      const market = marketResult.rows[0]
       if (!market || market.status !== 'open') {
-        throw new BetError('MARKET_NOT_FOUND_OR_CLOSED', 422)
+        throw new BetError('MARKET_NOT_FOUND_OR_CLOSED', 422, 'Mercado não encontrado ou encerrado.')
       }
-
       poolYes = market.pool_yes
       poolNo = market.pool_no
     }
 
-    // 3. Calculate CPMM
+    // 3. Calculate CPMM result (pure computation, no I/O)
     const result = calculateCpmmPurchase(
-      {
-        pool: { YES: poolYes, NO: poolNo },
-        p: 0.5,
-        collectedFees: { creator: 0, liquidity: 0 },
-      },
+      { pool: { YES: poolYes, NO: poolNo }, p: 0.5, collectedFees: { creator: 0, liquidity: 0 } },
       betData.amount,
       betData.direction
     )
 
     // 4. Debit balance
-    await sql`
-      UPDATE user_balances
-      SET balance = balance - ${betData.amount}
-      WHERE user_id = ${betData.userId}
-    `
+    await client.query(
+      'UPDATE user_balances SET balance = balance - $1 WHERE user_id = $2',
+      [betData.amount, betData.userId]
+    )
 
-    // 5. Update pool
+    // 5. Update pool with new CPMM values
     if (betData.answerId) {
-      await sql`
-        UPDATE answers
-        SET
-          pool_yes = ${betData.direction === 'YES' ? result.newPool.YES : poolYes},
-          pool_no = ${betData.direction === 'NO' ? result.newPool.NO : poolNo},
-          volume = volume + ${betData.amount}
-        WHERE id = ${betData.answerId}
-      `
+      await client.query(
+        'UPDATE answers SET pool_yes = $1, pool_no = $2, volume = volume + $3 WHERE id = $4',
+        [
+          betData.direction === 'YES' ? result.newPool.YES : poolYes,
+          betData.direction === 'NO' ? result.newPool.NO : poolNo,
+          betData.amount,
+          betData.answerId,
+        ]
+      )
     } else {
-      await sql`
-        UPDATE markets
-        SET
-          pool_yes = ${betData.direction === 'YES' ? result.newPool.YES : poolYes},
-          pool_no = ${betData.direction === 'NO' ? result.newPool.NO : poolNo},
-          total_volume = total_volume + ${betData.amount}
-        WHERE id = ${betData.marketId}
-      `
+      await client.query(
+        'UPDATE markets SET pool_yes = $1, pool_no = $2, total_volume = total_volume + $3 WHERE id = $4',
+        [
+          betData.direction === 'YES' ? result.newPool.YES : poolYes,
+          betData.direction === 'NO' ? result.newPool.NO : poolNo,
+          betData.amount,
+          betData.marketId,
+        ]
+      )
     }
 
-    // 6. Insert bet
-    const betRows = (await sql`
-      INSERT INTO bets (
-        user_id, market_id, answer_id, outcome, amount, shares,
-        prob_before, prob_after, created_at
-      )
-      VALUES (
-        ${betData.userId}, ${betData.marketId}, ${betData.answerId || null},
-        ${betData.direction}, ${betData.amount},
-        ${Math.round(result.shares * 100)},
-        ${result.probBefore}, ${result.probAfter}, NOW()
-      )
-      RETURNING id
-    `) as { id: string }[]
-
-    const betId = betRows[0]?.id
+    // 6. Insert bet record
+    const betResult = await client.query<{ id: string }>(
+      `INSERT INTO bets (user_id, market_id, answer_id, outcome, amount, shares, prob_before, prob_after, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       RETURNING id`,
+      [
+        betData.userId,
+        betData.marketId,
+        betData.answerId ?? null,
+        betData.direction,
+        betData.amount,
+        Math.round(result.shares * 100),
+        result.probBefore,
+        result.probAfter,
+      ]
+    )
+    const betId = betResult.rows[0]?.id
     if (!betId) throw new Error('Failed to create bet')
 
     // 7. Upsert position
-    await sql`
-      INSERT INTO user_positions (
-        user_id, market_id, answer_id, outcome, shares,
-        invested_amount, created_at, updated_at
-      )
-      VALUES (
-        ${betData.userId}, ${betData.marketId}, ${betData.answerId || null},
-        ${betData.direction}, ${Math.round(result.shares * 100)},
-        ${betData.amount}, NOW(), NOW()
-      )
-      ON CONFLICT (user_id, market_id, COALESCE(answer_id, ''::uuid), outcome)
-      DO UPDATE SET
-        shares = user_positions.shares + ${Math.round(result.shares * 100)},
-        invested_amount = user_positions.invested_amount + ${betData.amount},
-        updated_at = NOW()
-    `
+    await client.query(
+      `INSERT INTO user_positions (user_id, market_id, answer_id, outcome, shares, invested_amount, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+       ON CONFLICT (user_id, market_id, COALESCE(answer_id, ''::uuid), outcome)
+       DO UPDATE SET
+         shares = user_positions.shares + $5,
+         invested_amount = user_positions.invested_amount + $6,
+         updated_at = NOW()`,
+      [
+        betData.userId,
+        betData.marketId,
+        betData.answerId ?? null,
+        betData.direction,
+        Math.round(result.shares * 100),
+        betData.amount,
+      ]
+    )
 
     // 8. Audit log
-    await sql`
-      INSERT INTO transactions (user_id, type, market_id, bet_id, amount, created_at)
-      VALUES (${betData.userId}, 'bet_placed', ${betData.marketId}, ${betId}, ${betData.amount}, NOW())
-    `
+    await client.query(
+      `INSERT INTO transactions (user_id, type, market_id, bet_id, amount, created_at)
+       VALUES ($1, 'bet_placed', $2, $3, $4, NOW())`,
+      [betData.userId, betData.marketId, betId, betData.amount]
+    )
 
+    await client.query('COMMIT')
     return betId
   } catch (err) {
-    console.error('placeBet error:', err)
+    await client.query('ROLLBACK')
+    console.error('placeBet error (rolled back):', err)
     throw err
+  } finally {
+    client.release()
   }
 }
 

@@ -35,19 +35,6 @@ type SortKey = "value" | "pnl" | "market"
 type SortDir = "asc" | "desc"
 type TabKey = "positions" | "closed" | "watchlist"
 
-function enrichBet(bet: Bet) {
-  const market = markets.find((m) => m.id === bet.marketId)
-  const currentPrice = market
-    ? bet.direction === "YES"
-      ? market.probability
-      : getNoPrice(market)
-    : bet.avgPrice
-  const currentValue = bet.shares * currentPrice
-  const invested = bet.amount
-  const profit = currentValue - invested
-  const profitPercent = invested > 0 ? (profit / invested) * 100 : 0
-  return { ...bet, market, currentPrice, currentValue, invested, profit, profitPercent }
-}
 
 interface UserPosition {
   marketId: string
@@ -102,6 +89,7 @@ export function PortfolioPage() {
       const invested = pos.investedAmount
       const profit = currentValue - invested
       const profitPercent = invested > 0 ? (profit / invested) * 100 : 0
+      const potentialPayout = pos.shares // each share pays R$1 if correct
       return {
         id: `${pos.marketId}-${pos.direction}`,
         marketId: pos.marketId,
@@ -115,6 +103,7 @@ export function PortfolioPage() {
         invested,
         profit,
         profitPercent,
+        potentialPayout,
       }
     })
   }, [positions])
@@ -285,7 +274,7 @@ export function PortfolioPage() {
               <Eye className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground">{t("portfolio.positions")}</span>
             </div>
-            <div className="text-2xl font-bold text-foreground">{userBets.length}</div>
+            <div className="text-2xl font-bold text-foreground">{enrichedBets.length}</div>
             <p className="mt-1 text-xs text-muted-foreground">
               {enrichedBets.filter((b) => b.profit >= 0).length} {t("portfolio.profit").split("/")[0].trim().toLowerCase()}
             </p>

@@ -6,7 +6,7 @@
  * multi-statement transactions in transaction mode).
  */
 
-import { neon, type NeonQueryFunction } from '@neondatabase/serverless'
+import { neon, Pool, type NeonQueryFunction } from '@neondatabase/serverless'
 
 if (!process.env.DATABASE_URL_UNPOOLED && !process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL_UNPOOLED or DATABASE_URL must be set in .env')
@@ -15,10 +15,15 @@ if (!process.env.DATABASE_URL_UNPOOLED && !process.env.DATABASE_URL) {
 const connectionUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL!
 
 /**
- * Main SQL client for queries.
- * Uses unpooled connection to support transactions.
+ * Main SQL client for simple (non-transactional) queries.
  */
 export const sql: NeonQueryFunction<false, false> = neon(connectionUrl)
+
+/**
+ * Connection pool for transactional operations.
+ * Use pool.connect() + BEGIN/COMMIT/ROLLBACK for atomic multi-step operations.
+ */
+export const pool = new Pool({ connectionString: connectionUrl })
 
 /**
  * Test the connection

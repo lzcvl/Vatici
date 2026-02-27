@@ -62,6 +62,13 @@ export function ActivityPage() {
         </h1>
       </div>
 
+      {activities.length === 0 && (
+        <div className="rounded-xl border border-border bg-card px-5 py-16 text-center">
+          <OrigamiCrane className="mx-auto mb-4 h-12 w-12 text-muted-foreground/20" />
+          <p className="text-sm text-muted-foreground">Nenhuma atividade ainda.</p>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
         {activities.map((activity) => {
           const dateStr = formatDate(activity.createdAt, locale)
