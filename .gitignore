@@ -19,3 +19,4 @@ backend/dist/
 BASEADOR/
 *.zip
 tsconfig.tsbuildinfo
+package-lock.json
