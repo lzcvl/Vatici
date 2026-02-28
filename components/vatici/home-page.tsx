@@ -12,18 +12,19 @@ import { MarketCard } from "./market-card"
 import { ArrowRight, TrendingUp } from "lucide-react"
 import { OrigamiDiamond } from "./origami-icons"
 
-export function HomePage() {
+export function HomePage({ initialMarkets }: { initialMarkets?: FrontendMarket[] }) {
   const { t, locale } = useI18n()
   const router = useRouter()
   const searchParams = useSearchParams()
   const searchQuery = searchParams.get('q') || ''
   const [category, setCategory] = useState("all")
-  const [markets, setMarkets] = useState<FrontendMarket[]>([])
-  const [loading, setLoading] = useState(true)
+  const [markets, setMarkets] = useState<FrontendMarket[]>(initialMarkets ?? [])
+  const [loading, setLoading] = useState(initialMarkets === undefined)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch markets (re-fetch when search query changes)
+  // Re-fetch only when search query changes (initial load uses SSR data)
   useEffect(() => {
+    if (!searchQuery && initialMarkets !== undefined) return
     const fetchMarkets = async () => {
       try {
         setLoading(true)
