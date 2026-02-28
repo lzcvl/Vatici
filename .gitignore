@@ -18,3 +18,4 @@ backend/dist/
 # Reference materials (not part of the project)
 BASEADOR/
 *.zip
+tsconfig.tsbuildinfo
