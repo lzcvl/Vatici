@@ -58,11 +58,13 @@ const publicLimiter = makeRateLimiter(300, 60 * 1000)       // 300 req / min    
 app.use('*', async (c, next) => {
   const origin = c.req.header('origin') ?? ''
   const allowed =
+    origin === 'https://vatici.com' ||
+    origin === 'https://www.vatici.com' ||
     origin.endsWith('.vercel.app') ||
     origin === 'http://localhost:3000' ||
     origin === 'http://localhost:3001'
 
-  const allowOrigin = allowed ? origin : 'https://v0-vatici-three.vercel.app'
+  const allowOrigin = allowed ? origin : 'https://vatici.com'
 
   c.header('Access-Control-Allow-Origin', allowOrigin)
   c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
