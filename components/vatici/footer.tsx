@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import Link from "next/link"
 import { Globe } from "lucide-react"
 import { useI18n, localeNames, type Locale } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { OrigamiCrane } from "./origami-icons"
+
+const FOOTER_LINKS = {
+  about:   "/sobre",
+  terms:   "/termos",
+  privacy: "/privacidade",
+  docs:    "/documentacao",
+  blog:    "/blog",
+  support: "/suporte",
+} as const
 
 const YEAR = 2026
 
@@ -42,14 +52,14 @@ export function Footer() {
           <div className="flex flex-col gap-3">
             <h4 className="text-sm font-semibold text-foreground">{t("footer.about")}</h4>
             <div className="flex flex-col gap-2">
-              {["about", "terms", "privacy"].map((item) => (
-                <a
+              {(["about", "terms", "privacy"] as const).map((item) => (
+                <Link
                   key={item}
-                  href="#"
+                  href={FOOTER_LINKS[item]}
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {t(`footer.${item}` as Parameters<typeof t>[0])}
-                </a>
+                </Link>
               ))}
             </div>
           </div>
@@ -57,14 +67,14 @@ export function Footer() {
           <div className="flex flex-col gap-3">
             <h4 className="text-sm font-semibold text-foreground">{t("footer.docs")}</h4>
             <div className="flex flex-col gap-2">
-              {["docs", "blog", "support"].map((item) => (
-                <a
+              {(["docs", "blog", "support"] as const).map((item) => (
+                <Link
                   key={item}
-                  href="#"
+                  href={FOOTER_LINKS[item]}
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {t(`footer.${item}` as Parameters<typeof t>[0])}
-                </a>
+                </Link>
               ))}
             </div>
           </div>
