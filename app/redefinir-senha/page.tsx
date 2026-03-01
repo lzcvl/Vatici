@@ -1,18 +1,21 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { Suspense, useState, useTransition } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useI18n } from "@/lib/i18n"
 import { resetPasswordAction } from "@/lib/auth-actions"
 import { Button } from "@/components/ui/button"
 import { OrigamiCrane } from "@/components/vatici/origami-icons"
 import { Eye, EyeOff, Lock, AlertCircle, CheckCircle } from "lucide-react"
 
-export default function RedefinirSenhaPage() {
+function RedefinirSenhaContent() {
   const { t } = useI18n()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const token = searchParams.get("token")
+
   const [isPending, startTransition] = useTransition()
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
@@ -21,28 +24,15 @@ export default function RedefinirSenhaPage() {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError("")
-
     const formData = new FormData(e.currentTarget)
-    const password = formData.get("password") as string
-    const confirmPassword = formData.get("confirmPassword") as string
-
-    if (password !== confirmPassword) {
-      setError("auth.errors.passwordMismatch")
-      return
-    }
-
-    if (password.length < 8) {
-      setError("Senha deve ter no minimo 8 caracteres")
-      return
-    }
 
     startTransition(async () => {
-      const result = await resetPasswordAction()
+      const result = await resetPasswordAction(formData)
       if (result.success) {
         setSuccess(true)
-        setTimeout(() => router.push("/login"), 2000)
+        setTimeout(() => router.push("/login"), 2500)
       } else {
-        setError(result.error || "Erro ao redefinir senha")
+        setError(result.error || "auth.errors.invalidResetToken")
       }
     })
   }
@@ -54,7 +44,6 @@ export default function RedefinirSenhaPage() {
       </div>
 
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-4">
           <Link href="/" className="flex items-center gap-2">
             <Image
@@ -67,15 +56,26 @@ export default function RedefinirSenhaPage() {
           </Link>
           <div className="text-center">
             <h1 className="text-2xl font-bold text-foreground">{t("auth.resetPassword")}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {"Escolha uma nova senha para sua conta."}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">Escolha uma nova senha para sua conta.</p>
           </div>
         </div>
 
-        {/* Form Card */}
         <div className="rounded-2xl border border-border bg-card p-6">
-          {success ? (
+          {!token ? (
+            <div className="flex flex-col items-center gap-4 py-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+                <AlertCircle className="h-6 w-6 text-destructive" />
+              </div>
+              <p className="text-center text-sm leading-relaxed text-muted-foreground">
+                {t("auth.errors.invalidResetToken")}
+              </p>
+              <Link href="/esqueci-senha">
+                <Button variant="outline" className="border-border text-foreground">
+                  {t("auth.forgotPassword")}
+                </Button>
+              </Link>
+            </div>
+          ) : success ? (
             <div className="flex flex-col items-center gap-4 py-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
                 <CheckCircle className="h-6 w-6 text-success" />
@@ -86,6 +86,8 @@ export default function RedefinirSenhaPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <input type="hidden" name="token" value={token} />
+
               {error && (
                 <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
                   <AlertCircle className="h-4 w-4 shrink-0" />
@@ -93,7 +95,6 @@ export default function RedefinirSenhaPage() {
                 </div>
               )}
 
-              {/* Password */}
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="password" className="text-sm font-medium text-foreground">
                   {t("auth.password")}
@@ -120,7 +121,6 @@ export default function RedefinirSenhaPage() {
                 </div>
               </div>
 
-              {/* Confirm Password */}
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
                   {t("auth.confirmPassword")}
@@ -151,5 +151,13 @@ export default function RedefinirSenhaPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function RedefinirSenhaPage() {
+  return (
+    <Suspense fallback={null}>
+      <RedefinirSenhaContent />
+    </Suspense>
   )
 }

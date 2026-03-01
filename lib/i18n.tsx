@@ -113,6 +113,7 @@ const translations = {
     "auth.errors.invalidEmail": "Email invalido.",
     "auth.errors.nameTooShort": "Nome deve ter no minimo 2 caracteres.",
     "auth.errors.passwordTooShort": "Senha deve ter no minimo 8 caracteres.",
+    "auth.errors.invalidResetToken": "Link invalido ou expirado. Solicite um novo.",
     // Account
     "account.title": "Minha Conta",
     "account.profile": "Perfil",
@@ -257,6 +258,7 @@ const translations = {
     "auth.errors.invalidEmail": "Invalid email address.",
     "auth.errors.nameTooShort": "Name must be at least 2 characters.",
     "auth.errors.passwordTooShort": "Password must be at least 8 characters.",
+    "auth.errors.invalidResetToken": "Invalid or expired link. Please request a new one.",
     "account.title": "My Account",
     "account.profile": "Profile",
     "account.security": "Security",
@@ -400,6 +402,7 @@ const translations = {
     "auth.errors.invalidEmail": "Correo electronico invalido.",
     "auth.errors.nameTooShort": "El nombre debe tener al menos 2 caracteres.",
     "auth.errors.passwordTooShort": "La contrasena debe tener al menos 8 caracteres.",
+    "auth.errors.invalidResetToken": "Enlace invalido o expirado. Solicite uno nuevo.",
     "account.title": "Mi Cuenta",
     "account.profile": "Perfil",
     "account.security": "Seguridad",

@@ -65,3 +65,20 @@ export async function createUser(data: {
     throw err
   }
 }
+
+/**
+ * Update password hash — called after a successful password reset
+ */
+export async function updateUserPassword(
+  userId: string,
+  passwordHash: string
+): Promise<void> {
+  try {
+    await sql`
+      UPDATE users SET password_hash = ${passwordHash} WHERE id = ${userId}
+    `
+  } catch (err) {
+    console.error('[Auth] updateUserPassword error:', err)
+    throw err
+  }
+}

@@ -3,8 +3,10 @@
 import { headers } from "next/headers"
 import { hashSync } from "bcryptjs"
 import { signIn, signOut } from "./auth"
-import { loginSchema, signupSchema, forgotPasswordSchema } from "./zod-schemas"
-import { findUserByEmail, createUser } from "./db/users"
+import { loginSchema, signupSchema, forgotPasswordSchema, resetPasswordSchema } from "./zod-schemas"
+import { findUserByEmail, createUser, updateUserPassword } from "./db/users"
+import { createPasswordResetToken, findValidToken, consumeToken } from "./db/tokens"
+import { sendPasswordResetEmail, sendWelcomeEmail } from "./resend"
 import { verifyTurnstile } from "./turnstile"
 import { checkRateLimit } from "./rate-limit"
 
@@ -92,11 +94,16 @@ export async function signupAction(formData: FormData): Promise<AuthResult> {
   }
 
   const passwordHash = hashSync(parsed.data.password, 10)
-  await createUser({
+  const user = await createUser({
     name: parsed.data.name,
     email: parsed.data.email,
     passwordHash,
   })
+
+  // Send welcome email fire-and-forget (non-blocking)
+  sendWelcomeEmail(user.email, user.name).catch((err) =>
+    console.error("[Auth] sendWelcomeEmail error:", err)
+  )
 
   try {
     await signIn("credentials", {
@@ -106,6 +113,7 @@ export async function signupAction(formData: FormData): Promise<AuthResult> {
     })
     return { success: true }
   } catch {
+    // Account created but auto-login failed — user can log in manually
     return { success: true }
   }
 }
@@ -117,15 +125,52 @@ export async function forgotPasswordAction(
 
   const parsed = forgotPasswordSchema.safeParse(raw)
   if (!parsed.success) {
-    return { success: false, error: parsed.error.errors[0].message }
+    return { success: false, error: "auth.errors.invalidEmail" }
   }
 
-  // Mock: always return success (no real email sent)
+  // Anti-enumeration: always return success regardless of whether email exists
+  try {
+    const user = await findUserByEmail(parsed.data.email)
+    if (user) {
+      const token = await createPasswordResetToken(user.id)
+      await sendPasswordResetEmail(parsed.data.email, token)
+    }
+  } catch (err) {
+    console.error("[Auth] forgotPasswordAction error:", err)
+    // Silently fail — do not reveal server errors to the user
+  }
+
   return { success: true }
 }
 
-export async function resetPasswordAction(): Promise<AuthResult> {
-  // Mock: always return success
+export async function resetPasswordAction(
+  formData: FormData
+): Promise<AuthResult> {
+  const token = formData.get("token") as string | null
+
+  if (!token?.trim()) {
+    return { success: false, error: "auth.errors.invalidResetToken" }
+  }
+
+  const raw = {
+    password: formData.get("password") as string,
+    confirmPassword: formData.get("confirmPassword") as string,
+  }
+
+  const parsed = resetPasswordSchema.safeParse(raw)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0].message }
+  }
+
+  const record = await findValidToken(token)
+  if (!record) {
+    return { success: false, error: "auth.errors.invalidResetToken" }
+  }
+
+  const passwordHash = hashSync(parsed.data.password, 10)
+  await updateUserPassword(record.userId, passwordHash)
+  await consumeToken(token)
+
   return { success: true }
 }
 
