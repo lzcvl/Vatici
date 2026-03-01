@@ -141,12 +141,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Demo credentials hint */}
-          <div className="mt-4 rounded-lg bg-secondary/50 p-3 text-center">
-            <p className="text-xs text-muted-foreground">
-              {t("auth.demoCredentials")}
-            </p>
-          </div>
         </div>
 
         {/* Signup link */}

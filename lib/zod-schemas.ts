@@ -1,33 +1,33 @@
 import { z } from "zod"
 
 export const loginSchema = z.object({
-  email: z.string().email("Email invalido"),
-  password: z.string().min(8, "Senha deve ter no minimo 8 caracteres"),
+  email: z.string().email("auth.errors.invalidEmail"),
+  password: z.string().min(8, "auth.errors.passwordTooShort"),
 })
 
 export const signupSchema = z
   .object({
-    name: z.string().min(2, "Nome deve ter no minimo 2 caracteres"),
-    email: z.string().email("Email invalido"),
-    password: z.string().min(8, "Senha deve ter no minimo 8 caracteres"),
+    name: z.string().min(2, "auth.errors.nameTooShort"),
+    email: z.string().email("auth.errors.invalidEmail"),
+    password: z.string().min(8, "auth.errors.passwordTooShort"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "Senhas nao coincidem",
+    message: "auth.errors.passwordMismatch",
     path: ["confirmPassword"],
   })
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email("Email invalido"),
+  email: z.string().email("auth.errors.invalidEmail"),
 })
 
 export const resetPasswordSchema = z
   .object({
-    password: z.string().min(8, "Senha deve ter no minimo 8 caracteres"),
+    password: z.string().min(8, "auth.errors.passwordTooShort"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "Senhas nao coincidem",
+    message: "auth.errors.passwordMismatch",
     path: ["confirmPassword"],
   })
 
