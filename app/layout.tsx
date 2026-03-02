@@ -12,15 +12,16 @@ const _spaceMono = Space_Mono({ weight: ["400", "700"], subsets: ["latin"], vari
 export const metadata: Metadata = {
   title: 'VATICI - Mercado de Predicoes',
   description: 'Compre e venda acoes em eventos do mundo real. Preveja o futuro e lucre com suas opinioes.',
-  generator: 'v0.app',
   icons: {
     icon: [
       {
-        url: '/icon-light-32x32.png',
+        url: '/icon-light-32x32.svg',
+        type: 'image/svg+xml',
         media: '(prefers-color-scheme: light)',
       },
       {
-        url: '/icon-dark-32x32.png',
+        url: '/icon-dark-32x32.svg',
+        type: 'image/svg+xml',
         media: '(prefers-color-scheme: dark)',
       },
       {

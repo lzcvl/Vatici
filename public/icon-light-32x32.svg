@@ -1,0 +1,17 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="6.5" fill="#001a6c"/>
+  <polygon
+    fill="white"
+    points="
+      21.27,4.65
+      16.03,18.72
+      10.73,4.65
+      3.86,4.65
+      12.42,27.35
+      12.82,27.35
+      19.29,27.35
+      19.69,27.35
+      28.14,4.65
+    "
+  />
+</svg>
