@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Sobre — VATICI",
-  description: "Conheça a VATICI, a plataforma brasileira de mercados de previsão.",
+  title: "Sobre a VATICI",
+  description: "Conheça a VATICI, a plataforma brasileira de mercados de previsão. Preveja eventos, aposte com créditos virtuais e acompanhe o consenso da comunidade.",
+  alternates: { canonical: "https://vatici.com/sobre" },
 }
 
 export default function SobrePage() {

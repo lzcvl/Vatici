@@ -20,10 +20,49 @@ async function HomePageData() {
   return <HomePage initialMarkets={initialMarkets} />
 }
 
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': 'https://vatici.com/#organization',
+      name: 'VATICI',
+      url: 'https://vatici.com',
+      description:
+        'Plataforma brasileira de mercados de previsão. Compre e venda cotas em eventos do mundo real.',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://vatici.com/images/vatici-logo.png',
+      },
+    },
+    {
+      '@type': 'WebSite',
+      '@id': 'https://vatici.com/#website',
+      name: 'VATICI',
+      url: 'https://vatici.com',
+      publisher: { '@id': 'https://vatici.com/#organization' },
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: 'https://vatici.com/?q={search_term_string}',
+        },
+        'query-input': 'required name=search_term_string',
+      },
+    },
+  ],
+}
+
 export default function Page() {
   return (
-    <Suspense fallback={<HomePageSkeleton />}>
-      <HomePageData />
-    </Suspense>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <Suspense fallback={<HomePageSkeleton />}>
+        <HomePageData />
+      </Suspense>
+    </>
   )
 }

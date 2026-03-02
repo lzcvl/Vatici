@@ -22,36 +22,75 @@ export async function generateMetadata(
   const market = await fetchMarket(id)
 
   if (!market) {
-    return { title: 'Mercado — VATICI' }
+    return { title: 'Mercado não encontrado' }
   }
 
   const prob = Math.round(market.probability * 100)
   const vol = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(market.volume)
   const question = market.question.pt
-  const title = `${question} — VATICI`
-  const description = `${prob}% de chance · Vol: ${vol} · Aposte agora no maior mercado de predições do Brasil.`
+  const title = question
+  const description = `${prob}% de chance de SIM · Vol: ${vol} · ${market.description.pt.slice(0, 120)}`
   const pageUrl = `${APP_URL}/mercado/${id}`
+
+  const images = market.iconUrl
+    ? [{ url: market.iconUrl, width: 1200, height: 630, alt: question }]
+    : undefined
 
   return {
     title,
     description,
+    alternates: { canonical: pageUrl },
     openGraph: {
       title,
       description,
-      type: 'website',
+      type: 'article',
       url: pageUrl,
       siteName: 'VATICI',
+      ...(images && { images }),
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      site: '@vatici',
+      site: '@vaticiapp',
     },
   }
 }
 
 export default async function MercadoPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
-  return <MarketDetail marketId={id} />
+  const market = await fetchMarket(id)
+
+  const jsonLd = market
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'Event',
+        name: market.question.pt,
+        description: market.description.pt,
+        startDate: market.createdAt,
+        endDate: market.closesAt,
+        eventStatus:
+          market.status === 'resolved'
+            ? 'https://schema.org/EventCancelled'
+            : 'https://schema.org/EventScheduled',
+        organizer: {
+          '@type': 'Organization',
+          name: 'VATICI',
+          url: APP_URL,
+        },
+        url: `${APP_URL}/mercado/${id}`,
+      }
+    : null
+
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      <MarketDetail marketId={id} />
+    </>
+  )
 }

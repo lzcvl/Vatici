@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Termos de Uso — VATICI",
+  title: "Termos de Uso",
   description: "Termos e condições de uso da plataforma VATICI.",
+  alternates: { canonical: "https://vatici.com/termos" },
 }
 
 const UPDATED = "1 de março de 2026"

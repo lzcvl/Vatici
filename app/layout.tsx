@@ -10,8 +10,21 @@ const _inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const _spaceMono = Space_Mono({ weight: ["400", "700"], subsets: ["latin"], variable: "--font-space-mono" });
 
 export const metadata: Metadata = {
-  title: 'VATICI - Mercado de Predicoes',
-  description: 'Compre e venda acoes em eventos do mundo real. Preveja o futuro e lucre com suas opinioes.',
+  metadataBase: new URL('https://vatici.com'),
+  title: {
+    default: 'VATICI — Mercados de Previsão',
+    template: '%s | VATICI',
+  },
+  description: 'Compre e venda cotas em eventos do mundo real. Preveja o futuro e lucre com suas opiniões no maior mercado de predições do Brasil.',
+  openGraph: {
+    siteName: 'VATICI',
+    locale: 'pt_BR',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    site: '@vaticiapp',
+  },
   icons: {
     icon: [
       {

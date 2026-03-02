@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Política de Privacidade — VATICI",
-  description: "Saiba como a VATICI coleta, usa e protege seus dados pessoais.",
+  title: "Política de Privacidade",
+  description: "Saiba como a VATICI coleta, usa e protege seus dados pessoais em conformidade com a LGPD.",
+  alternates: { canonical: "https://vatici.com/privacidade" },
 }
 
 const UPDATED = "1 de março de 2026"

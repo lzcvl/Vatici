@@ -2,8 +2,9 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 export const metadata: Metadata = {
-  title: "Documentação — VATICI",
-  description: "Guia completo para usar a plataforma VATICI de mercados de previsão.",
+  title: "Documentação",
+  description: "Guia completo para usar a plataforma VATICI: primeiros passos, como apostar, resolução de mercados e mais.",
+  alternates: { canonical: "https://vatici.com/documentacao" },
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

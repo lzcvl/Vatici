@@ -2,8 +2,9 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 export const metadata: Metadata = {
-  title: "Blog — VATICI",
-  description: "Artigos, análises e novidades da VATICI.",
+  title: "Blog",
+  description: "Artigos sobre mercados de previsão, análises de probabilidade e novidades da plataforma VATICI.",
+  alternates: { canonical: "https://vatici.com/blog" },
 }
 
 // Future posts will be added here as static objects or fetched from a CMS.
