@@ -74,6 +74,8 @@ export function CreateMarketPage() {
         category,
         marketType,
         closesAt: new Date(closesAt).toISOString(),
+        ante: 10000,
+        initialProb: 50,
         ...(marketType === "multi" && { answers: answers.map((a) => a.trim()) }),
       }
 
@@ -108,11 +110,10 @@ export function CreateMarketPage() {
             <button
               type="button"
               onClick={() => setMarketType("binary")}
-              className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
-                marketType === "binary"
+              className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${marketType === "binary"
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border bg-secondary text-muted-foreground hover:border-primary/50"
-              }`}
+                }`}
             >
               <div className="font-semibold">Binário</div>
               <div className="mt-0.5 text-xs opacity-70">Sim / Não</div>
@@ -120,11 +121,10 @@ export function CreateMarketPage() {
             <button
               type="button"
               onClick={() => setMarketType("multi")}
-              className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
-                marketType === "multi"
+              className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${marketType === "multi"
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border bg-secondary text-muted-foreground hover:border-primary/50"
-              }`}
+                }`}
             >
               <div className="font-semibold">Multi-escolha</div>
               <div className="mt-0.5 text-xs opacity-70">Várias opções</div>
@@ -248,6 +248,14 @@ export function CreateMarketPage() {
             {error}
           </div>
         )}
+
+        {/* Info de Liquidez */}
+        <div className="rounded-lg bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-primary">
+          <p className="font-semibold mb-1">Liquidez Inicial (Ante)</p>
+          <p className="text-primary/90">
+            Será debitado <strong>M$ 100</strong> (10.000 moedas) do seu saldo para fundar este mercado e garantir a liquidez inicial.
+          </p>
+        </div>
 
         {/* Botões */}
         <div className="flex gap-3 pt-2">

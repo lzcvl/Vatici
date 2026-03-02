@@ -2,7 +2,7 @@
  * Market Database Queries
  */
 
-import { sql } from './client'
+import { sql, pool } from './client'
 import type { DbMarket, DbAnswer } from '../mappers'
 
 /**
@@ -100,46 +100,96 @@ export async function createMarket(data: {
   category: string
   marketType: 'binary' | 'multi'
   closesAt: string
-  initialPoolYes?: number // in cents, default 100000
-  initialPoolNo?: number
+  ante?: number // Default to 10000 cents (R$ 100.00)
+  initialProb?: number // Default to 50%
   answers?: string[] // for multi-choice
 }): Promise<string> {
+  const ante = data.ante ?? 10000
+  const initialProb = data.initialProb ?? 50
+  const p = initialProb / 100
+
+  // For initial CPMM, we inject ante into both sides to maintain k
+  const poolYes = ante
+  const poolNo = ante
+
+  const creatorId = data.creatorId === 'todo-auth' ? null : data.creatorId
+
+  const client = await pool.connect()
+
   try {
-    const poolYes = data.initialPoolYes ?? 100000
-    const poolNo = data.initialPoolNo ?? 100000
+    await client.query('BEGIN')
 
-    const creatorId = data.creatorId === 'todo-auth' ? null : data.creatorId
+    // 1. Deduct Ante from user balance if a real user is creating
+    if (creatorId) {
+      const balanceResult = await client.query<{ balance: string }>(
+        'SELECT balance FROM user_balances WHERE user_id = $1 FOR UPDATE',
+        [creatorId]
+      )
+      // Some simple drivers return bigint as string
+      const userBalance = parseInt(balanceResult.rows[0]?.balance ?? '0', 10)
 
-    const rows = (await sql`
-      INSERT INTO markets (
+      if (userBalance < ante) {
+        throw new Error('INSUFFICIENT_BALANCE: Saldo insuficiente para prover a liquidez inicial do mercado.')
+      }
+
+      await client.query(
+        'UPDATE user_balances SET balance = balance - $1 WHERE user_id = $2',
+        [ante, creatorId]
+      )
+
+      await client.query(
+        `INSERT INTO transactions (user_id, type, amount, description, created_at, balance_after)
+         VALUES ($1, $2, $3, $4, NOW(), $5)`,
+        [
+          creatorId,
+          'ante',
+          -ante,
+          'Liquidez inicial (Ante) para criação do mercado',
+          userBalance - ante
+        ]
+      )
+    }
+
+    // 2. Insert into markets
+    const res = await client.query<{ id: string }>(
+      `INSERT INTO markets (
         creator_id, question, description, category,
-        market_type, pool_yes, pool_no, closes_at
+        market_type, pool_yes, pool_no, p, closes_at
       )
-      VALUES (
-        ${creatorId}, ${data.question}, ${data.description},
-        ${data.category}, ${data.marketType}, ${poolYes}, ${poolNo},
-        ${data.closesAt}
-      )
-      RETURNING id
-    `) as { id: string }[]
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id`,
+      [
+        creatorId, data.question, data.description,
+        data.category, data.marketType, poolYes, poolNo, p, data.closesAt
+      ]
+    )
 
-    const marketId = rows[0]?.id
+    const marketId = res.rows[0]?.id
     if (!marketId) throw new Error('Failed to create market')
 
-    // If multi-choice, create answer rows
+    // 3. Insert Answers (if multi-choice)
     if (data.marketType === 'multi' && data.answers?.length) {
+      const n = data.answers.length
+      const multiPoolYes = Math.round(ante / n)
+      const multiPoolNo = Math.round(ante / n)
+
       for (let i = 0; i < data.answers.length; i++) {
-        await sql`
-          INSERT INTO answers (market_id, text, index, pool_yes, pool_no)
-          VALUES (${marketId}, ${data.answers[i]}, ${i}, 100000, 100000)
-        `
+        await client.query(
+          `INSERT INTO answers (market_id, text, index, pool_yes, pool_no)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [marketId, data.answers[i], i, multiPoolYes, multiPoolNo]
+        )
       }
     }
 
+    await client.query('COMMIT')
     return marketId
   } catch (err) {
+    await client.query('ROLLBACK')
     console.error('createMarket error:', err)
     throw err
+  } finally {
+    client.release()
   }
 }
 

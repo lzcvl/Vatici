@@ -22,7 +22,7 @@ app.get('/', async (c) => {
     const { category, status = 'open', limit = '50', q } = c.req.query()
 
     // Fire-and-forget: lazily refresh trending flags
-    updateTrending().catch(() => {})
+    updateTrending().catch(() => { })
 
     const markets = await listMarkets({
       category: category || undefined,
@@ -138,6 +138,8 @@ app.post('/', async (c) => {
       marketType?: 'binary' | 'multi'
       closesAt?: string
       answers?: string[]
+      ante?: number
+      initialProb?: number
     }>()
 
     // Validation
@@ -164,11 +166,16 @@ app.post('/', async (c) => {
       marketType: body.marketType,
       closesAt: body.closesAt,
       answers: body.answers,
+      ante: body.ante,
+      initialProb: body.initialProb
     })
 
     return c.json({ id: marketId }, 201)
-  } catch (err) {
+  } catch (err: any) {
     console.error('POST /markets error:', err)
+    if (err.message?.includes('INSUFFICIENT_BALANCE')) {
+      return c.json({ error: 'Saldo insuficiente para prover a liquidez inicial' } as ErrorResponse, 422)
+    }
     return c.json({ error: 'Failed to create market' } as ErrorResponse, 500)
   }
 })
