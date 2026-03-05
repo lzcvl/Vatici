@@ -17,6 +17,9 @@
                                        │ avatar_url      │
                                        │ bio             │
                                        │ is_verified     │
+                                       │ is_banned       │
+                                       │ registration_ip │
+                                       │ last_ip         │
                                        │ created_at      │
                                        │ updated_at      │
                                        │ last_login_at   │

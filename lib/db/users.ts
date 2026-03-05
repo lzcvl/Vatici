@@ -12,6 +12,7 @@ export interface DbUser {
   name: string
   email: string
   password_hash: string
+  is_banned?: boolean
 }
 
 /**
@@ -19,17 +20,32 @@ export interface DbUser {
  */
 export async function findUserByEmail(email: string): Promise<DbUser | null> {
   try {
-    const rows = await sql<DbUser[]>`
-      SELECT id, name, email, password_hash
+    const rows = await sql`
+      SELECT id, name, email, password_hash, is_banned
       FROM users
       WHERE LOWER(email) = LOWER(${email})
       AND deleted_at IS NULL
       LIMIT 1
     `
-    return rows[0] || null
+    return (rows[0] as DbUser) || null
   } catch (err) {
     console.error('[Auth] findUserByEmail error:', err)
     throw err
+  }
+}
+
+/**
+ * Update user IP - called on successful login
+ */
+export async function updateUserIp(userId: string, ip: string): Promise<void> {
+  try {
+    await sql`
+      UPDATE users 
+      SET last_ip = ${ip}, last_login_at = CURRENT_TIMESTAMP
+      WHERE id = ${userId}
+    `
+  } catch (err) {
+    console.error('[Auth] updateUserIp error:', err)
   }
 }
 
@@ -40,16 +56,17 @@ export async function createUser(data: {
   name: string
   email: string
   passwordHash: string
+  registrationIp: string
 }): Promise<DbUser> {
   try {
     // Insert user
-    const userRows = await sql<DbUser[]>`
-      INSERT INTO users (name, email, password_hash)
-      VALUES (${data.name}, LOWER(${data.email}), ${data.passwordHash})
+    const userRows = await sql`
+      INSERT INTO users (name, email, password_hash, registration_ip, last_ip)
+      VALUES (${data.name}, LOWER(${data.email}), ${data.passwordHash}, ${data.registrationIp}, ${data.registrationIp})
       RETURNING id, name, email, password_hash
     `
 
-    const user = userRows[0]
+    const user = userRows[0] as DbUser
     if (!user) throw new Error('Failed to create user')
 
     // Create initial balance entry (1M cents = R$10,000)

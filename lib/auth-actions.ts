@@ -98,6 +98,7 @@ export async function signupAction(formData: FormData): Promise<AuthResult> {
     name: parsed.data.name,
     email: parsed.data.email,
     passwordHash,
+    registrationIp: ip,
   })
 
   // Send welcome email fire-and-forget (non-blocking)

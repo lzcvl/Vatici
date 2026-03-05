@@ -109,3 +109,21 @@ export interface ResolvedPosition {
     question: { pt: string; en: string; es: string }
   }
 }
+
+export interface AdminStats {
+  totalUsers: number;
+  totalMarkets: number;
+  totalVolume: number;
+  totalBets: number;
+}
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  balance: number;
+  is_banned: boolean;
+  registration_ip: string | null;
+  last_ip: string | null;
+  created_at: string;
+}

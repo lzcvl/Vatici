@@ -2,8 +2,9 @@ import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { compareSync } from "bcryptjs"
 import { SignJWT } from "jose"
-import { findUserByEmail } from "./db/users"
+import { findUserByEmail, updateUserIp } from "./db/users"
 import { loginSchema } from "./zod-schemas"
+import { headers } from "next/headers"
 
 const AUTH_SECRET = process.env.AUTH_SECRET
 if (!AUTH_SECRET) throw new Error('AUTH_SECRET environment variable is not set')
@@ -31,8 +32,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const user = await findUserByEmail(parsed.data.email)
         if (!user) return null
 
+        if (user.is_banned) {
+          throw new Error("Sua conta foi suspensa.")
+        }
+
         const passwordMatch = compareSync(parsed.data.password, user.password_hash)
         if (!passwordMatch) return null
+
+        try {
+          // Extract IP to update last_ip
+          const hdrs = await headers()
+          const ip = hdrs.get("x-forwarded-for")?.split(",")[0].trim() ||
+            hdrs.get("x-real-ip") || "127.0.0.1"
+          await updateUserIp(user.id, ip)
+        } catch (err) {
+          console.error('[Auth] failed to get headers for ip:', err)
+        }
 
         return {
           id: user.id,
