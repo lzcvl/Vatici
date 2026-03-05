@@ -5,6 +5,14 @@ export interface AdminStats {
     totalMarkets: number;
     totalVolume: number;
     totalBets: number;
+    totalLiquidity: number;
+    totalProfit: number;
+    userGrowth: {
+        daily: number;
+        weekly: number;
+        monthly: number;
+    };
+    volumeHistory: { date: string; volume: number }[];
 }
 
 export interface AdminUser {
@@ -19,18 +27,51 @@ export interface AdminUser {
 }
 
 export async function getAdminStats(): Promise<AdminStats> {
-    const [usersCount, marketsCount, volumeResult, betsCount] = await Promise.all([
-        sql`SELECT count(*) as c FROM users`,
-        sql`SELECT count(*) as c FROM markets`,
-        sql`SELECT sum(total_volume) as v FROM markets`,
-        sql`SELECT count(*) as c FROM bets`
+    const [
+        basicStats,
+        liquidityRes,
+        profitRes,
+        growthDaily,
+        growthWeekly,
+        growthMonthly,
+        historyRes
+    ] = await Promise.all([
+        sql`
+            SELECT 
+                (SELECT count(*) FROM users) as users,
+                (SELECT count(*) FROM markets) as markets,
+                (SELECT sum(total_volume) FROM markets) as volume,
+                (SELECT count(*) FROM bets) as bets
+        `,
+        sql`SELECT sum(balance) as v FROM user_balances`,
+        sql`SELECT sum(fees) as v FROM bets`,
+        sql`SELECT count(*) as c FROM users WHERE created_at > now() - interval '1 day'`,
+        sql`SELECT count(*) as c FROM users WHERE created_at > now() - interval '7 days'`,
+        sql`SELECT count(*) as c FROM users WHERE created_at > now() - interval '30 days'`,
+        sql`
+            SELECT date_trunc('day', created_at) as d, sum(amount) as v 
+            FROM bets 
+            WHERE created_at > now() - interval '7 days' 
+            GROUP BY 1 ORDER BY 1 ASC
+        `
     ])
 
     return {
-        totalUsers: parseInt(usersCount[0]?.c || '0', 10),
-        totalMarkets: parseInt(marketsCount[0]?.c || '0', 10),
-        totalVolume: parseInt(volumeResult[0]?.v || '0', 10) / 100, // cents to real
-        totalBets: parseInt(betsCount[0]?.c || '0', 10)
+        totalUsers: parseInt(basicStats[0]?.users || '0', 10),
+        totalMarkets: parseInt(basicStats[0]?.markets || '0', 10),
+        totalVolume: parseInt(basicStats[0]?.volume || '0', 10) / 100,
+        totalBets: parseInt(basicStats[0]?.bets || '0', 10),
+        totalLiquidity: parseInt(liquidityRes[0]?.v || '0', 10) / 100,
+        totalProfit: parseInt(profitRes[0]?.v || '0', 10) / 100,
+        userGrowth: {
+            daily: parseInt(growthDaily[0]?.c || '0', 10),
+            weekly: parseInt(growthWeekly[0]?.c || '0', 10),
+            monthly: parseInt(growthMonthly[0]?.c || '0', 10),
+        },
+        volumeHistory: historyRes.map(r => ({
+            date: new Date(r.d).toISOString().split('T')[0],
+            volume: parseInt(r.v || '0', 10) / 100
+        }))
     }
 }
 

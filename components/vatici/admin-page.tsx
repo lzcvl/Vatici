@@ -235,8 +235,8 @@ export function AdminPage() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as 'dashboard' | 'users' | 'markets')}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               }`}
           >
             <tab.icon className="h-4 w-4" />
@@ -247,34 +247,80 @@ export function AdminPage() {
 
       {/* Tab: Dashboard */}
       {activeTab === 'dashboard' && stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-medium text-muted-foreground">Usuários Totais</p>
-              <div className="bg-primary/10 p-2 rounded-lg"><Users className="h-4 w-4 text-primary" /></div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-medium text-muted-foreground">Usuários Totais</p>
+                <div className="bg-primary/10 p-2 rounded-lg"><Users className="h-4 w-4 text-primary" /></div>
+              </div>
+              <h3 className="text-2xl font-bold">{stats.totalUsers.toLocaleString('pt-BR')}</h3>
+              <div className="mt-2 flex gap-4 text-[10px] uppercase font-bold text-muted-foreground">
+                <span>Hoje: <span className="text-primary">{stats.userGrowth.daily}</span></span>
+                <span>7d: <span className="text-primary">{stats.userGrowth.weekly}</span></span>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold">{stats.totalUsers.toLocaleString('pt-BR')}</h3>
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-medium text-muted-foreground">Volume de Negócios</p>
+                <div className="bg-success/10 p-2 rounded-lg"><Receipt className="h-4 w-4 text-success" /></div>
+              </div>
+              <h3 className="text-2xl font-bold">{formatBRL(stats.totalVolume)}</h3>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-medium text-muted-foreground">Liquidez na Plataforma</p>
+                <div className="bg-blue-500/10 p-2 rounded-lg"><Gift className="h-4 w-4 text-blue-500" /></div>
+              </div>
+              <h3 className="text-2xl font-bold">{formatBRL(stats.totalLiquidity)}</h3>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-medium text-muted-foreground">Lucro (Taxas)</p>
+                <div className="bg-warning/10 p-2 rounded-lg"><ArrowRightLeft className="h-4 w-4 text-warning" /></div>
+              </div>
+              <h3 className="text-2xl font-bold">{formatBRL(stats.totalProfit)}</h3>
+            </div>
           </div>
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-medium text-muted-foreground">Volume de Negócios</p>
-              <div className="bg-success/10 p-2 rounded-lg"><Receipt className="h-4 w-4 text-success" /></div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+              <h4 className="text-sm font-bold mb-4 flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Crescimento de Usuários
+              </h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Últimas 24 horas</span>
+                  <span className="font-mono font-bold">+{stats.userGrowth.daily}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Últimos 7 dias</span>
+                  <span className="font-mono font-bold">+{stats.userGrowth.weekly}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Últimos 30 dias</span>
+                  <span className="font-mono font-bold">+{stats.userGrowth.monthly}</span>
+                </div>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold">{formatBRL(stats.totalVolume)}</h3>
-          </div>
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-medium text-muted-foreground">Mercados Criados</p>
-              <div className="bg-purple-500/10 p-2 rounded-lg"><Target className="h-4 w-4 text-purple-500" /></div>
+
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+              <h4 className="text-sm font-bold mb-4 flex items-center gap-2">
+                <Target className="h-4 w-4 text-purple-500" />
+                Métricas Rápidas
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Mercados</p>
+                  <p className="text-lg font-bold">{stats.totalMarkets.toLocaleString('pt-BR')}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Apostas</p>
+                  <p className="text-lg font-bold">{stats.totalBets.toLocaleString('pt-BR')}</p>
+                </div>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold">{stats.totalMarkets.toLocaleString('pt-BR')}</h3>
-          </div>
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-medium text-muted-foreground">Apostas Efetuadas</p>
-              <div className="bg-orange-500/10 p-2 rounded-lg"><ArrowRightLeft className="h-4 w-4 text-orange-500" /></div>
-            </div>
-            <h3 className="text-2xl font-bold">{stats.totalBets.toLocaleString('pt-BR')}</h3>
           </div>
         </div>
       )}
@@ -364,8 +410,8 @@ export function AdminPage() {
                   {/* Status badge */}
                   <div className="mb-3 flex items-center gap-2">
                     <span className={`rounded px-2 py-0.5 text-xs font-bold ${market.status === 'disputed'
-                        ? 'bg-destructive/15 text-destructive'
-                        : 'bg-warning/15 text-warning'
+                      ? 'bg-destructive/15 text-destructive'
+                      : 'bg-warning/15 text-warning'
                       }`}>
                       {market.status === 'disputed' ? 'Disputado' : 'IA Incerta'}
                     </span>

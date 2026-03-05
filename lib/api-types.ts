@@ -115,6 +115,14 @@ export interface AdminStats {
   totalMarkets: number;
   totalVolume: number;
   totalBets: number;
+  totalLiquidity: number;
+  totalProfit: number;
+  userGrowth: {
+    daily: number;
+    weekly: number;
+    monthly: number;
+  };
+  volumeHistory: { date: string; volume: number }[];
 }
 
 export interface AdminUser {
