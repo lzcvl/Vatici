@@ -48,8 +48,8 @@ function makeRateLimiter(maxRequests: number, windowMs: number) {
 }
 
 // Route-specific limiters
-const strictLimiter = makeRateLimiter(20,  15 * 60 * 1000) // 20 req / 15 min  (bets, sell)
-const normalLimiter = makeRateLimiter(60,  60 * 1000)       // 60 req / min     (comments, resolutions)
+const strictLimiter = makeRateLimiter(20, 15 * 60 * 1000) // 20 req / 15 min  (bets, sell)
+const normalLimiter = makeRateLimiter(60, 60 * 1000)       // 60 req / min     (comments, resolutions)
 const publicLimiter = makeRateLimiter(300, 60 * 1000)       // 300 req / min    (markets GET)
 
 /**
@@ -67,7 +67,7 @@ app.use('*', async (c, next) => {
   const allowOrigin = allowed ? origin : 'https://vatici.com'
 
   c.header('Access-Control-Allow-Origin', allowOrigin)
-  c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
   c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   c.header('Vary', 'Origin')
 
@@ -103,12 +103,12 @@ app.get('/', (c) => {
 /**
  * Rate limiting per route group
  */
-app.use('/bets/*',         strictLimiter)
-app.use('/markets',        publicLimiter)
-app.use('/markets/*',      publicLimiter)
-app.use('/comments/*',     normalLimiter)
-app.use('/resolutions/*',  normalLimiter)
-app.use('/me/*',           normalLimiter)
+app.use('/bets/*', strictLimiter)
+app.use('/markets', publicLimiter)
+app.use('/markets/*', publicLimiter)
+app.use('/comments/*', normalLimiter)
+app.use('/resolutions/*', normalLimiter)
+app.use('/me/*', normalLimiter)
 
 /**
  * Routes
